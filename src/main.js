@@ -19,7 +19,9 @@ let state = {
     zoomProgress: 0.0,
     baseScaleFactor: 10,
     activeDevDomain: 'domain1',
-    targetDevScale: 20
+    targetDevScale: 20,
+    isPaused: false,
+    togglePause: function() { this.isPaused = !this.isPaused; },
 };
 
 // ===================== Init =====================
@@ -89,6 +91,7 @@ function setupGUI() {
     engineFolder.add(state, 'baseScaleFactor', 2, 50).name('Scale Factor').onChange(() => {
         if(state.mode === 'play') applyDomainScales();
     });
+    gui.add(state, 'togglePause').name("Pause");
 
     // Extract names and ids for the dropdown mapping
     const domainMapping = {};
@@ -174,7 +177,7 @@ function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
 
-    if (state.mode === 'play') {
+    if (state.mode === 'play' && !state.isPaused) {
         state.zoomProgress += state.speed * delta * state.direction;
 
         if (state.zoomProgress >= 1.0) {
