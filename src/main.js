@@ -198,5 +198,4 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// Boot the engine
 init();
