@@ -12,6 +12,7 @@ let gui;
 
 // Animation State
 let clock = new THREE.Clock();
+let pauseButton;
 let state = {
     mode: 'play',
     direction: 1,
@@ -21,7 +22,10 @@ let state = {
     activeDevDomain: 'domain1',
     targetDevScale: 20,
     isPaused: false,
-    togglePause: function() { this.isPaused = !this.isPaused; },
+    togglePause: function() {
+        this.isPaused = !this.isPaused;
+        pauseButton.name(this.isPaused ? 'Play' : 'Pause');
+    },
 };
 
 // ===================== Init =====================
@@ -91,7 +95,7 @@ function setupGUI() {
     engineFolder.add(state, 'baseScaleFactor', 2, 50).name('Scale Factor').onChange(() => {
         if(state.mode === 'play') applyDomainScales();
     });
-    gui.add(state, 'togglePause').name("Pause");
+    pauseButton = gui.add(state, 'togglePause').name("Pause");
 
     // Extract names and ids for the dropdown mapping
     const domainMapping = {};
