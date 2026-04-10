@@ -48,7 +48,9 @@ function init() {
     // Orbit Controls
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.enabled = false; // Locked during animation loop (only allow camera rotation)
+    // controls.enabled = false; // Locked during animation loop (only allow camera rotation)
+    controls.enablePan = false;  // Lock right-click dragging
+    controls.enableZoom = false; // Lock scroll wheel
 
     // ===================== Create Objects =====================
     createObjects();
@@ -130,10 +132,12 @@ function setMode(mode, dir, btnElement) {
 
     // Handle Logic
     if (mode === 'dev') {
-        controls.enabled = true;
+        controls.enablePan = true;
+        controls.enableZoom = true;
         applyDevMode();
     } else {
-        controls.enabled = false;
+        controls.enablePan = false;
+        controls.enableZoom = false;
         camera.position.set(0, 0, 0.1);
         controls.target.set(0,0,0);
         domains.forEach(d => d.visible = true);
