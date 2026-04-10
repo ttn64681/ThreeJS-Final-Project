@@ -1,0 +1,37 @@
+body {
+    margin: 0; overflow: hidden; background-color: #050505;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none;
+}
+
+#canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+
+/* UI Overlay */
+#ui-layer {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 12px; z-index: 10;
+    background: rgba(15, 15, 15, 0.6); backdrop-filter: blur(10px);
+    padding: 12px 24px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+button {
+    background: transparent; color: rgba(255, 255, 255, 0.7);
+    border: none; padding: 10px 20px; border-radius: 30px;
+    font-size: 14px; font-weight: 600; cursor: pointer; letter-spacing: 1px;
+    text-transform: uppercase; transition: all 0.3s ease;
+}
+
+button:hover { color: white; background: rgba(255, 255, 255, 0.1); }
+
+.active-btn {
+    background: white !important; color: black !important;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+    transition: all 0.3s ease;
+}
+.active-btn:hover {
+    transform: scale(1.05);
+}
+
+footer {
+    text-align:center; padding:16px; margin-top:24px; font-size:0.8rem; color:#999; border-top:1px solid #e5e7eb;
+}

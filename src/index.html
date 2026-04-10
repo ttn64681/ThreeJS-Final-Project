@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domain Expansion Exhibition</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "lil-gui": "https://unpkg.com/lil-gui@0.19.1/dist/lil-gui.esm.min.js"
+            }
+        }
+    </script>
+    <script src="main.js" type="module"></script>
+
+</head>
+<body>
+
+<div id="ui-layer">
+    <button id="btn-dev">Dev Mode</button>
+    <button id="btn-play" class="active-btn">Play Expansion</button>
+    <button id="btn-reverse">Reverse</button>
+</div>
+
+<div id="canvas-container"></div>
+
+<footer>
+    &copy; 2026 Sidhant Dash + Thai Nguyen. All rights reserved. Do not distribute without permission.
+</footer>
+
+</body>
+</html>
