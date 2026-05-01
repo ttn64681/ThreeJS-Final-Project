@@ -3,8 +3,7 @@ import * as THREE from 'three';
 // Shared sphere geometry for the "Sky"
 const baseGeometry = new THREE.SphereGeometry(1, 64, 64);
 // Shared ground geometry (radius 1 to match sphere)
-const groundGeometry = new THREE.CircleGeometry(1, 64);
-
+const groundGeometry = new THREE.CircleGeometry(.98, 64);
 
 function addLightGroundSky(group, color) {
     const ambient = new THREE.AmbientLight(color, 0.4);
@@ -44,7 +43,7 @@ export function createDomain1() {
 
     addLightGroundSky(group, 0xff0000); // Add light and ground
 
-    group.userData = { id: 'domain1', name: 'Malevolent Shrine' };
+    group.userData = { id: 'domain1', name: 'Domain 1' };
     return group;
 }
 
@@ -63,7 +62,7 @@ export function createDomain2() {
 
     addLightGroundSky(group, 0x8800ff);
 
-    group.userData = { id: 'domain2', name: 'Infinite Void' };
+    group.userData = { id: 'domain2', name: 'Domain 2' };
     return group;
 }
 

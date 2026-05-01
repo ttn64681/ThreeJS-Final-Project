@@ -15,12 +15,12 @@ let clock = new THREE.Clock();
 let state = {
     mode: 'play',
     direction: 1,
-    speed: 0.3,
+    speed: 0.15,
     zoomProgress: 0.0,
     progressController: null,
     baseScaleFactor: 20,
     activeDevDomain: 'domain1',
-    targetDevScale: 20,
+    targetDevScale: 0.5,
     isPaused: false,
 };
 
@@ -105,8 +105,12 @@ function setupGUI() {
     devFolder.add(state, 'activeDevDomain', domainMapping).name('Edit Domain').onChange(() => {
         if(state.mode === 'dev') applyDevMode();
     });
-    devFolder.add(state, 'targetDevScale', 5, 100).name('Room Size').onChange(() => {
-        if(state.mode === 'dev') applyDevMode();
+    devFolder.add(state, 'targetDevScale', 0.15, 5).name('Room Size').onChange(() => {
+        if(state.mode === 'dev') {
+            domains.forEach(group => {
+                group.scale.set(state.targetDevScale, state.targetDevScale, state.targetDevScale);
+            })
+        };
     });
 }
 
@@ -140,7 +144,7 @@ function setMode(mode, dir, btnElement) {
         controls.enableZoom = false;
         camera.position.set(0, 0, 1);
         controls.target.set(0,0,0);
-        domains.forEach(d => d.visible = true);
+        // domains.forEach(d => d.visible = true);
     }
 }
 
@@ -182,12 +186,13 @@ function applyDomainScales() {
     // and because they scale up so large
     for (let i = 0; i < domains.length; i++) {
         let domain = domains[i]
-        domain.visible = true; // reset visibility for all domains
 
         if ((i === 0)) { // hide largest off-screen domain
             domain.visible = false;
             continue;
         }
+
+        domain.visible = true; // reset visibility for all domains
 
         const exponent = 1 - i + state.zoomProgress;
         const scaleValue = Math.pow(state.baseScaleFactor, exponent);
