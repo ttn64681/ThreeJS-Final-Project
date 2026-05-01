@@ -67,6 +67,58 @@ export function createDomain2() {
     return group;
 }
 
+function randomPointOnSphere() {
+    const u = Math.random();
+    const v = Math.random();
+
+    const theta = 2 * Math.PI * u; // Longitude
+    const phi = Math.acos(2 * v - 1); // Latitude
+
+    return new THREE.Vector3(
+        Math.sin(phi) * Math.cos(theta),
+        Math.cos(phi),
+        Math.sin(phi) * Math.sin(theta)
+    );
+}
+
+function createBuilding() {
+
+    const height = 0.05 + Math.random() * (0.2 - 0.05);
+
+    const geo = new THREE.BoxGeometry( 0.05, height, 0.05 );
+    const mat = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
+    const building = new THREE.Mesh( geo, mat );
+    building.position.x = -0.5;
+    building.position.y = height / 2;
+
+    return building;
+}
+
+function generateBuildings(group, count = 500) {
+
+    for (let i = 0; i < count; i++) {
+        const normal = randomPointOnSphere();
+        const building = createBuilding();
+
+        building.position.copy(normal);
+
+        // Make building stand outward
+        building.lookAt(new THREE.Vector3(0, 0, 0));
+        building.rotateX(Math.PI / 2);
+
+        // Attach to a pivot so rotation works cleanly
+        const pivot = new THREE.Group();
+        pivot.position.copy(normal);
+        pivot.lookAt(0, 0, 0);
+
+        building.position.set(0, 0, 0);
+        pivot.add(building);
+
+        group.add(pivot);
+    }
+
+}
+
 // TODO: Sidhant
 export function createDomain3() {
     const material = new THREE.MeshStandardMaterial({
@@ -82,7 +134,9 @@ export function createDomain3() {
 
     addLightGroundSky(group, 0x00ff00);
 
-    group.userData = { id: 'domain3', name: 'Domain 3' };
+    generateBuildings(group, 500);
+
+    group.userData = { id: 'domain3', name: 'Hurtbreak Wonderland' };
     return group;
 }
 
