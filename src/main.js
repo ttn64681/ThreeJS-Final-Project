@@ -12,20 +12,16 @@ let gui;
 
 // Animation State
 let clock = new THREE.Clock();
-let pauseButton;
 let state = {
     mode: 'play',
     direction: 1,
     speed: 0.3,
     zoomProgress: 0.0,
-    baseScaleFactor: 10,
+    progressController: null,
+    baseScaleFactor: 20,
     activeDevDomain: 'domain1',
     targetDevScale: 20,
     isPaused: false,
-    togglePause: function() {
-        this.isPaused = !this.isPaused;
-        pauseButton.name(this.isPaused ? 'Play' : 'Pause');
-    },
 };
 
 // ===================== Init =====================
@@ -36,8 +32,8 @@ function init() {
     scene = new THREE.Scene();
 
     // Camera
-    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
-    camera.position.set(0, 0, 0.1);
+    camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.01, 1000);
+    camera.position.set(0, 0, 1);
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
@@ -93,12 +89,11 @@ function setupGUI() {
 
     // Animation Controls
     const engineFolder = gui.addFolder('Animation Engine');
+    state.progressDisplay = engineFolder.add(state, 'zoomProgress').name('Zoom Progress: ').decimals(4).disable();
     engineFolder.add(state, 'speed', 0.01, 1.5).name('Zoom Speed');
     engineFolder.add(state, 'baseScaleFactor', 2, 50).name('Scale Factor').onChange(() => {
         if(state.mode === 'play') applyDomainScales();
     });
-    pauseButton = gui.add(state, 'togglePause').name("Pause");
-
     // Extract names and ids for the dropdown mapping
     const domainMapping = {};
     domains.forEach(d => {
@@ -118,7 +113,7 @@ function setupGUI() {
 // ===================== Button Wiring =====================
 function setupButtons() {
     document.getElementById('btn-play').addEventListener('click', (e) => setMode('play', 1, e.target));
-    document.getElementById('btn-reverse').addEventListener('click', (e) => setMode('play', -1, e.target));
+    document.getElementById('btn-reverse').addEventListener('click', (e) => setMode('reverse', -1, e.target));
     document.getElementById('btn-dev').addEventListener('click', (e) => setMode('dev', 0, e.target));
 }
 
@@ -126,11 +121,16 @@ function setMode(mode, dir, btnElement) {
     state.mode = mode;
     if (dir !== 0) state.direction = dir;
 
+    // Play / Pause handler
+    if ((mode === 'play' || mode === 'reverse')) {
+        state.isPaused = !state.isPaused;
+    }
+
     // Update button styling (remove active-btn class from all butts)
     document.querySelectorAll('#ui-layer button').forEach(btn => btn.classList.remove('active-btn'));
     btnElement.classList.add('active-btn');
 
-    // Handle Logic
+    // Dev Mode Handler
     if (mode === 'dev') {
         controls.enablePan = true;
         controls.enableZoom = true;
@@ -138,7 +138,7 @@ function setMode(mode, dir, btnElement) {
     } else {
         controls.enablePan = false;
         controls.enableZoom = false;
-        camera.position.set(0, 0, 0.1);
+        camera.position.set(0, 0, 1);
         controls.target.set(0,0,0);
         domains.forEach(d => d.visible = true);
     }
@@ -150,7 +150,26 @@ function applyDevMode() {
         if (group.userData.id === state.activeDevDomain) {
             group.visible = true;
             group.scale.set(state.targetDevScale, state.targetDevScale, state.targetDevScale);
-            group.children[0].material.opacity = 1.0;
+
+            // reset every child (Sky, Ground, and Lights)
+            group.traverse((child) => {
+                if (child.isMesh) {
+                    child.visible = true;
+                    child.material.opacity = 1.0;
+                    child.material.transparent = true;
+                    child.material.depthWrite = true; // Force solid depth in Dev Mode
+                }
+                if (child.isLight) {
+                    child.visible = true;
+                    if (child.type === 'PointLight') {
+                        // Multiply intensity by the square of the scale
+                        // 5.0 * (20^2) = 2000 intensity.
+                        child.intensity = 5.0 * Math.pow(state.targetDevScale, 2);
+                    } else {
+                        child.intensity = 0.4; // reset ambient to normal
+                    }
+                }
+            });
         } else {
             group.visible = false;
         }
@@ -158,14 +177,40 @@ function applyDevMode() {
 }
 
 function applyDomainScales() {
+    // i=0 -> i=3 : largest domain -> smallest domain
+    // We only ever see at most 3 domains at a time given our camera is so close
+    // and because they scale up so large
     for (let i = 0; i < domains.length; i++) {
+        let domain = domains[i]
+        domain.visible = true; // reset visibility for all domains
+
+        if ((i === 0)) { // hide largest off-screen domain
+            domain.visible = false;
+            continue;
+        }
+
         const exponent = 1 - i + state.zoomProgress;
         const scaleValue = Math.pow(state.baseScaleFactor, exponent);
-        domains[i].scale.set(scaleValue, scaleValue, scaleValue);
+        domain.scale.set(scaleValue, scaleValue, scaleValue);
 
         // Opacity mapping
         let fadeOpacity = exponent + 2.0;
-        domains[i].children[0].material.opacity = Math.max(0, Math.min(1, fadeOpacity));
+        const finalOpacity = Math.max(0, Math.min(1, fadeOpacity));
+
+        // Traverse each child in the domain
+        // Traverse each child in the domain
+        domain.traverse((child) => {
+            if (child.isMesh) {
+                child.visible = domain.visible;
+                child.material.opacity = finalOpacity;
+                child.renderOrder = i; // ensure correct painter's algorithm
+
+                // alphaTest 0.05 prevents invisible pixels from glitching the depth buffer
+                child.material.alphaTest = 0.05;
+                // only write depth when the sphere is mostly solid (>80%) to stop Z-fighting
+                child.material.depthWrite = (finalOpacity > 0.8);
+            }
+        });
     }
 }
 
@@ -185,9 +230,10 @@ function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
 
-    if (state.mode === 'play' && !state.isPaused) {
+    if ((state.mode === 'play' || state.mode === 'reverse') && !state.isPaused) {
         state.zoomProgress += state.speed * delta * state.direction;
 
+        // Loop from 0.0-1.0
         if (state.zoomProgress >= 1.0) {
             state.zoomProgress -= 1.0;
             shiftDomainsForward();
@@ -198,6 +244,8 @@ function animate() {
         applyDomainScales();
     }
 
+    state.progressDisplay.updateDisplay();
+    camera.updateProjectionMatrix()
     controls.update();
     renderer.render(scene, camera);
 }
