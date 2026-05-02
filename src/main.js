@@ -203,7 +203,6 @@ function applyDomainScales() {
         const finalOpacity = Math.max(0, Math.min(1, fadeOpacity));
 
         // Traverse each child in the domain
-        // Traverse each child in the domain
         domain.traverse((child) => {
             if (child.isMesh) {
                 child.visible = domain.visible;
