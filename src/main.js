@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import GUI from 'lil-gui';
 
 // Import domain generation functions from your separate file
-import { createDomain1, createDomain2, createDomain3, createDomain4 } from './domains.js';
+import {createDomain1, createDomain2, createDomain3, createDomain4, globalUniforms} from './domains.js';
 
 // ===================== Scene Variables =====================
 let scene, camera, renderer, controls;
@@ -22,6 +22,7 @@ let state = {
     activeDevDomain: 'domain1',
     targetDevScale: 0.5,
     isPaused: false,
+    shaderTime: 0.0,
 };
 
 // ===================== Init =====================
@@ -36,7 +37,7 @@ function init() {
     camera.position.set(0, 0, 1);
 
     // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+    renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
@@ -63,6 +64,8 @@ function init() {
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    renderer.compile(scene, camera); // compile shaders
 
     // Start system
     applyDomainScales();
@@ -203,17 +206,29 @@ function applyDomainScales() {
         const finalOpacity = Math.max(0, Math.min(1, fadeOpacity));
 
         // Traverse each child in the domain
-        // Traverse each child in the domain
         domain.traverse((child) => {
             if (child.isMesh) {
                 child.visible = domain.visible;
-                child.material.opacity = finalOpacity;
-                child.renderOrder = i; // ensure correct painter's algorithm
-
+                // child.renderOrder = i; // ensure correct painter's algorithm
                 // alphaTest 0.05 prevents invisible pixels from glitching the depth buffer
                 child.material.alphaTest = 0.05;
                 // only write depth when the sphere is mostly solid (>80%) to stop Z-fighting
                 child.material.depthWrite = (finalOpacity > 0.8);
+
+                // Render sky first, then others on top
+                if (child.name === "Sky") {
+                    child.renderOrder = i*10;
+                } else {
+                    child.renderOrder = (i*10) + 1;
+                }
+
+                if (child.material.uniforms && child.material.uniforms.u_local_opacity) {
+                    // If custom shader, fade it via uniform.
+                    child.material.uniforms.u_local_opacity.value = finalOpacity;
+                } else {
+                    // If normal material, fade normally.
+                    child.material.opacity = finalOpacity;
+                }
             }
         });
     }
@@ -237,6 +252,7 @@ function animate() {
 
     if ((state.mode === 'play' || state.mode === 'reverse') && !state.isPaused) {
         state.zoomProgress += state.speed * delta * state.direction;
+        state.shaderTime += state.speed * delta * state.direction;
 
         // Loop from 0.0-1.0
         if (state.zoomProgress >= 1.0) {
@@ -248,6 +264,8 @@ function animate() {
         }
         applyDomainScales();
     }
+
+    globalUniforms.u_time.value = state.shaderTime;
 
     state.progressDisplay.updateDisplay();
     camera.updateProjectionMatrix()
