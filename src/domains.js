@@ -83,11 +83,12 @@ function randomPointOnSphere() {
 function createBuilding() {
 
     const height = 0.05 + Math.random() * (0.2 - 0.05);
+    const width = 0.05 + Math.random() * (0.1 - 0.05);
+    const length = 0.05 + Math.random() * (0.1 - 0.05);
 
-    const geo = new THREE.BoxGeometry( 0.05, height, 0.05 );
-    const mat = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
+    const geo = new THREE.BoxGeometry( length, height, width );
+    const mat = new THREE.MeshBasicMaterial( { color: 0xc09156 } );
     const building = new THREE.Mesh( geo, mat );
-    building.position.x = -0.5;
     building.position.y = height / 2;
 
     return building;
@@ -115,13 +116,12 @@ function generateBuildings(group, count = 500) {
 
         group.add(pivot);
     }
-
 }
 
 // TODO: Sidhant
 export function createDomain3() {
-    const material = new THREE.MeshStandardMaterial({
-        color: 0x00ff00, // green
+    const material = new THREE.MeshBasicMaterial({
+        color: 0x828282, // beige
         side: THREE.BackSide,
         transparent: true,
         opacity: 1.0,
@@ -131,9 +131,29 @@ export function createDomain3() {
     const mesh = new THREE.Mesh(baseGeometry, material);
     group.add(mesh);
 
-    addLightGroundSky(group, 0x00ff00);
+    //addLightGroundSky(group, 0x00ff00);
 
-    generateBuildings(group, 500);
+    //generateBuildings(group, 700);
+
+    const geo = new THREE.BoxGeometry( 0.1, 0.4, 0.1 );
+    const mat = new THREE.MeshBasicMaterial( { color: 0xc09156 } );
+    const building = new THREE.Mesh( geo, mat );
+    building.position.y = 0.4 / 2;
+
+    const geo2 = new THREE.ConeGeometry( 0.1, 0.1, 4 );
+    const mat2 = new THREE.MeshBasicMaterial( { color: 0xffff00 } );
+    const cone = new THREE.Mesh(geo2, mat2 );
+    group.add( cone );
+    const geo3 = new THREE.BufferGeometry();
+    const vertices = new Float32Array([
+        0,  1,  0, // 0: Top Tip
+        1,  0,  1, // 1: Front Right
+        1,  0, -1, // 2: Back Right
+        -1,  0, -1, // 3: Back Left
+        -1,  0,  1  // 4: Front Left
+    ]);
+
+    group.add(building);
 
     group.userData = { id: 'domain3', name: 'Hurtbreak Wonderland' };
     return group;
