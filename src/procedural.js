@@ -20,7 +20,7 @@ export function warpTerrain(groundMesh) {
 
         // Create rolling hills
         const height = Math.sin(vertex.x * 5) * Math.cos(vertex.y * 5) * 0.1;
-        // Break up smoothness by adding a random displacement
+        // Break up smoothness by adding random displacement
         const displacement = (Math.random() - 0.5) * 0.05; // adss rougher/rockier texture
 
         // Update Z axis for point i
@@ -42,28 +42,28 @@ export function spawnSwords(group, groundMesh, count) {
 
     for (let i = 0; i < count; i++) {
         // Pick random X/Z coordinate w/in circle's radius
-        const radius = Math.random() * 0.9;
-        const angle = Math.random() * Math.PI * 2;
-        const randX = Math.cos(angle) * radius;
-        const randZ = Math.sin(angle) * radius;
+        const randCoord = randomPointOnCircleGrid();
 
         // Fire laser from sky downward at that rand X/Z coord
-        raycaster.set(new THREE.Vector3(randX, 1.0, randZ), downVector);
+        raycaster.set(new THREE.Vector3(randCoord.randX, 1.0, randCoord.randZ), downVector);
         const intersects = raycaster.intersectObject(groundMesh); // each intersected obj sorted
         // intersects[0] -> {distance, point, face, faceIndex, object, uv}
 
         // If intersects, place sword
         if (intersects.length > 0) {
             const hit = intersects[0];
-            const sword = masterSword.clone();
-            sword.position.copy(hit.point);
+            const distFromCenter = hit.point.length() // dist from (0,0,0)
+            if (distFromCenter > .2) {
+                const sword = masterSword.clone();
+                sword.position.copy(hit.point);
 
-            // Random sword stab angles
-            sword.rotateX((Math.random() - 0.5) * 0.5);
-            sword.rotateY(Math.random() * Math.PI * 2);
-            sword.rotateZ((Math.random() - 0.5) * 0.2);
+                // Random sword stab angles
+                sword.rotateX((Math.random() - 0.5) * 0.5);
+                sword.rotateY(Math.random() * Math.PI * 2);
+                sword.rotateZ((Math.random() - 0.5) * 0.2);
 
-            group.add(sword);
+                group.add(sword);
+            }
         }
     }
 }
@@ -77,12 +77,9 @@ export function spawnCrosses(group, groundMesh, count) {
 
     for (let i = 0; i < count; i++) {
         // Pick random X/Z coordinate w/in circle's radius
-        const radius = Math.random() * 0.9;
-        const angle = Math.random() * Math.PI * 2;
-        const randomX = Math.cos(angle) * radius;
-        const randomZ = Math.sin(angle) * radius;
+        const randCoord = randomPointOnCircleGrid();
 
-        const origin = new THREE.Vector3(randomX, 1.0, randomZ);
+        const origin = new THREE.Vector3(randCoord.randX, 1.0, randCoord.randZ);
         raycaster.set(origin, downVector);
 
         // Shoot laser down
@@ -90,18 +87,30 @@ export function spawnCrosses(group, groundMesh, count) {
 
         if (intersects.length > 0) {
             const hit = intersects[0];
-            const cross = masterCross.clone();
-            cross.position.copy(hit.point);
+            const distFromCenter = hit.point.length() // dist from (0,0,0)
+            if (distFromCenter > .2) {
+                const cross = masterCross.clone();
+                cross.position.copy(hit.point);
 
-            // Give cross random rotation
-            cross.rotateY(Math.random() * Math.PI * 2);
-            cross.rotateX((Math.random() - 0.5) * 0.2);
-            cross.rotateZ((Math.random() - 0.5) * 0.2);
+                // Give cross random rotation
+                cross.rotateY(Math.random() * Math.PI * 2);
+                cross.rotateX((Math.random() - 0.5) * 0.2);
+                cross.rotateZ((Math.random() - 0.5) * 0.2);
 
-            group.add(cross);
+                group.add(cross);
+            }
         }
     }
 } // spawnCrosses
+
+function randomPointOnCircleGrid() {
+    const radius = Math.random() * 0.9;
+    const angle = Math.random() * Math.PI * 2;
+    const randX = Math.cos(angle) * radius;
+    const randZ = Math.sin(angle) * radius;
+
+    return { randX, randZ }
+}
 
 function createSword() {
     const swordGroup = new THREE.Group();

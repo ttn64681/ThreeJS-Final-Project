@@ -15,7 +15,7 @@ let clock = new THREE.Clock();
 let state = {
     mode: 'play',
     direction: 1,
-    speed: 0.15,
+    speed: 0.05,
     zoomProgress: 0.0,
     progressController: null,
     baseScaleFactor: 20,
@@ -145,8 +145,6 @@ function setMode(mode, dir, btnElement) {
     } else {
         controls.enablePan = false;
         controls.enableZoom = false;
-        camera.position.set(0, 0, 1);
-        controls.target.set(0,0,0);
         // domains.forEach(d => d.visible = true);
     }
 }
