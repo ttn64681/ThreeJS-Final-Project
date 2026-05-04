@@ -181,7 +181,9 @@ function setupGUI() {
     // Dev Mode Controls
     const devFolder = gui.addFolder('Dev Mode Options');
     devFolder.add(state, 'activeDevDomain', domainMapping).name('Edit Domain').onChange(() => {
-        if(state.mode === 'dev') applyDevMode();
+        if(state.mode === 'dev') {
+            applyDevMode()
+        };
     });
     devFolder.add(state, 'targetDevScale', 0.15, 5).name('Room Size').onChange(() => {
         if(state.mode === 'dev') {
@@ -190,6 +192,36 @@ function setupGUI() {
             })
         };
     });
+
+    // Domain 1: Moon Controls
+    const moonFolder = gui.addFolder('Moon & Sky');
+    moonFolder; // hidden until dev mode activates Domain 1
+    const colorProxy = { rimColor: globalUniforms.u_color.value.getHex() };
+    // Wire directly into globalUniforms
+    moonFolder.addColor(colorProxy, 'rimColor').name('Rim Color').onChange(v => {
+        globalUniforms.u_color.value.setHex(v);
+    });
+    moonFolder.add(globalUniforms.u_power, 'value', 0.5, 8).name('Rim Tightness');
+    moonFolder.add(globalUniforms.u_intensity, 'value', 0.1, 5).name('Rim Intensity');
+
+    // Intro Reset
+    const introControls = {
+        resetIntro: () => {
+            introComplete = false;
+            introProgress = 0.0;
+            introShaderProgress = 0.0;
+            state.zoomProgress = 0.0;
+            state.shaderTime = 0.0;
+            state.isPaused = true;
+
+            camera.position.set(0, 0, 8);
+            controls.target.set(0, 0, 0);
+            controls.update();
+
+            applyDomainScales();
+        }
+    };
+    engineFolder.add(introControls, 'resetIntro').name('Replay Intro');
 }
 
 // ===================== Button Wiring =====================
@@ -216,6 +248,9 @@ function setMode(mode, dir, btnElement) {
     if (mode === 'dev') {
         controls.enablePan = true;
         controls.enableZoom = true;
+        camera.position.set(0, 0, 1.5);
+        controls.target.set(0, 0, 0);
+        controls.update();
         applyDevMode();
     } else {
         controls.enablePan = false;
@@ -223,6 +258,7 @@ function setMode(mode, dir, btnElement) {
         if (introComplete) {
             camera.position.z = 1;
             controls.target.set(0, 0, 0);
+            controls.update();
         }
     }
 }
@@ -356,7 +392,7 @@ function animate() {
         if (t > 0.75) {
             const blendT = (t - 0.75) / 0.25; // 0.0 -> 1.0 over the last 25%
             state.zoomProgress += state.speed * delta * blendT;
-            applyDomainScales(); // Update the domain scales behind the scenes!
+            applyDomainScales(); // update domain scales
         }
 
         // Render main scene underneath intro overlay
