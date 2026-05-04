@@ -447,6 +447,7 @@ export function createDomain1() {
     // Procedural
     spawnBonePiles(group, ground, 50);
 
+    // Export Moon and RimMesh to control fresnel + intensity via main.js lil-gui
     group.userData = { id: 'domain1', name: 'Malevolent Shrine' };
     return group;
 }
