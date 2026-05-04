@@ -172,39 +172,243 @@ function randomPointOnSphere() {
     );
 }
 
-function createBuilding() {
-    const height = 0.05 + Math.random() * (0.2 - 0.05);
+function createGrass(width, length) {
+    const park = new THREE.Group();
 
-    const geo = new THREE.BoxGeometry( 0.05, height, 0.05 );
-    const mat = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
-    const building = new THREE.Mesh( geo, mat );
-    // building.position.x = -0.5;
-    building.position.y = height / 2;
+
+    const geo = new THREE.BoxGeometry(length, 0.05, width)
+    const mat = new THREE.MeshStandardMaterial( {
+        color: 0x2ecc71,
+        side: THREE.DoubleSide
+    } );
+    const grass = new THREE.Mesh( geo, mat );
+
+    grass.lookAt(0, 0, 0);
+
+    park.add(grass);
+
+    const sidewalk = createSidewalk(width, length);
+    park.add(sidewalk);
+
+
+    // const geo2 = new THREE.BoxGeometry(width + 0.05, height, length + 0.05);
+    // const mat2 = new THREE.MeshStandardMaterial( { color: 0xaaaaaa } );
+    // const border = new THREE.Mesh( geo2, mat2 );
+    // border.position.y = 0.04;
+    // park.add(border);
+
+    return park;
+
+}
+
+function createSidewalk(width, length) {
+
+    const texLoader = new THREE.TextureLoader();
+    const sidewalkTex = texLoader.load('assets/sidewalk-texture.png');
+
+    const geo = new THREE.BoxGeometry(length + 0.02, 0.005, width + 0.02);
+    const mat = new THREE.MeshStandardMaterial({ map: sidewalkTex });
+    const sidewalk = new THREE.Mesh(geo, mat);
+    sidewalk.position.y = 0.01; // slightly above ground
+    return sidewalk;
+}
+
+function createBuilding(width, length) {
+    const building = new THREE.Group();
+
+    // -- Base Setup --
+    const height = 0.05 + Math.random() * 0.2;
+
+
+
+    const texLoader = new THREE.TextureLoader();
+    const baseTex = texLoader.load('assets/building-texture.png');
+    const geo = new THREE.BoxGeometry(length, height, width);
+    const mat = new THREE.MeshStandardMaterial({ map: baseTex });
+    const base = new THREE.Mesh(geo, mat);
+    base.position.y = height / 2;
+    building.add(base);
+
+    // -- Side walk --
+    const sidewalk = createSidewalk(width, length);
+    building.add(sidewalk);
+
+
+    // -- Fixed Gable Roof --
+    const rH = 0.04; // Roof Height
+    const hL = length / 2; // Half Length
+    const hW = width / 2; // Half Width
+
+    let geo2;
+
+    let roofChance = Math.random();
+    if (roofChance < 0.25) {
+        // Vertices defined face-by-face with counter-clockwise winding order pointing OUTWARD
+        const vertices = new Float32Array([
+            // Front Slope (Looking from negative Z)
+            -hL, 0, -hW, hL, rH, 0, hL, 0, -hW,
+            -hL, 0, -hW, -hL, rH, 0, hL, rH, 0,
+
+            // Back Slope (Looking from positive Z)
+            hL, 0, hW, -hL, rH, 0, -hL, 0, hW,
+            hL, 0, hW, hL, rH, 0, -hL, rH, 0,
+
+            // Right Side (Triangle looking from positive X)
+            hL, 0, -hW, hL, rH, 0, hL, 0, hW,
+
+            // Left Side (Triangle looking from negative X)
+            -hL, 0, hW, -hL, rH, 0, -hL, 0, -hW
+        ]);
+
+        // UVs mapped to stretch perfectly across each triangle set
+        const uvs = new Float32Array([
+            // Front Slope
+            0, 0, 1, 1, 1, 0,
+            0, 0, 0, 1, 1, 1,
+
+            // Back Slope
+            0, 0, 1, 1, 1, 0,
+            0, 0, 0, 1, 1, 1,
+
+            // Right Side
+            0, 0, 0.5, 1, 1, 0,
+
+            // Left Side
+            0, 0, 0.5, 1, 1, 0
+        ]);
+
+        geo2 = new THREE.BufferGeometry();
+        geo2.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        geo2.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        geo2.computeVertexNormals(); // Recalculates normals to point outward
+    } else if (roofChance >= 0.25 && roofChance < 0.50) {
+        const vertices = new Float32Array([
+            // Slope 1 (Looking from negative X) - Points OUTWARD
+            -hL, 0, -hW,   -hL, 0,  hW,    0, rH,  hW,
+            -hL, 0, -hW,    0, rH,  hW,    0, rH, -hW,
+
+            // Slope 2 (Looking from positive X) - Points OUTWARD
+            hL, 0,  hW,    hL, 0, -hW,    0, rH, -hW,
+            hL, 0,  hW,    0, rH, -hW,    0, rH,  hW,
+
+            // Front Triangle (Looking from negative Z)
+            -hL, 0, -hW,    0, rH, -hW,    hL, 0, -hW,
+
+            // Back Triangle (Looking from positive Z)
+            hL, 0,  hW,    0, rH,  hW,   -hL, 0,  hW
+        ]);
+
+        const uvs = new Float32Array([
+            // Slope 1
+            0, 0,  1, 0,  1, 1,
+            0, 0,  1, 1,  0, 1,
+            // Slope 2
+            0, 0,  1, 0,  1, 1,
+            0, 0,  1, 1,  0, 1,
+            // Front Triangle
+            0, 0,  0.5, 1,  1, 0,
+            // Back Triangle
+            0, 0,  0.5, 1,  1, 0
+        ]);
+
+        geo2 = new THREE.BufferGeometry();
+        geo2.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        geo2.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        geo2.computeVertexNormals(); // Recalculates normals to point outward
+    } else if (roofChance >= 0.50 && roofChance < 0.75) {
+        // -- Pyramid Shape --
+        const pyramidVertices = new Float32Array([
+            // Front Triangle (Looking from negative Z)
+            -hL, 0, -hW,   0, rH, 0,   hL, 0, -hW,
+            // Back Triangle (Looking from positive Z)
+            hL, 0,  hW,   0, rH, 0,  -hL, 0,  hW,
+            // Right Triangle (Looking from positive X)
+            hL, 0, -hW,   0, rH, 0,   hL, 0,  hW,
+            // Left Triangle (Looking from negative X)
+            -hL, 0,  hW,   0, rH, 0,  -hL, 0, -hW
+        ]);
+
+        const pyramidUvs = new Float32Array([
+            // Front
+            0, 0,  0.5, 1,  1, 0,
+            // Back
+            0, 0,  0.5, 1,  1, 0,
+            // Right
+            0, 0,  0.5, 1,  1, 0,
+            // Left
+            0, 0,  0.5, 1,  1, 0
+        ]);
+
+        geo2 = new THREE.BufferGeometry();
+        geo2.setAttribute('position', new THREE.BufferAttribute(pyramidVertices, 3));
+        geo2.setAttribute('uv', new THREE.BufferAttribute(pyramidUvs, 2));
+        geo2.computeVertexNormals();
+    } else {
+        geo2 = new THREE.BoxGeometry(length, 0.001, width);
+        geo2.computeVertexNormals();
+    }
+
+    const roofMat = new THREE.MeshStandardMaterial({
+        map: texLoader.load('assets/roof-texture.png'),
+        //flatShading: false,
+        roughness: 0.9,
+        metalness: 0.0,
+    });
+
+    const roof = new THREE.Mesh(geo2, roofMat);
+    roof.position.y = height;
+    building.add(roof);
 
     return building;
-} // createBuilding
+}
+
+
 
 export function generateBuildings(group, count = 500) {
-    for (let i = 0; i < count; i++) {
+
+    const up = new THREE.Vector3(0, 1, 0);
+    const placedPoints = [];
+
+    let attempts = 0;
+
+
+    while (placedPoints.length < count && attempts < count * 10) {
+        attempts++;
+
+        const width = 0.05 + Math.random() * (0.15 - 0.05);
+        const length = 0.05 + Math.random() * (0.15 -  0.05);
+
         const normal = randomPointOnSphere();
-        const building = createBuilding();
 
-        building.position.copy(normal);
+        // spacing radius
+        const minDist = 0.12;
 
-        // Make building stand outward
-        building.lookAt(new THREE.Vector3(0, 0, 0));
-        building.rotateX(Math.PI / 2);
+        if (isTooClose(normal, placedPoints, minDist)) continue;
 
-        // Attach to a pivot so rotation works cleanly
-        const pivot = new THREE.Group();
-        pivot.position.copy(normal);
-        pivot.lookAt(0, 0, 0);
+        placedPoints.push(normal);
 
-        building.position.set(0, 0, 0);
-        pivot.add(building);
+        const isBuilding = Math.random() < 0.75;
 
-        group.add(pivot);
+        const obj = isBuilding ? createBuilding(width, length) : createGrass(width, length);
+
+        obj.position.copy(normal);
+
+        const quat = new THREE.Quaternion()
+            .setFromUnitVectors(up, normal.clone().negate());
+
+        obj.quaternion.copy(quat);
+
+        group.add(obj);
     }
 } // generateBuilding
+
+function isTooClose(point, placedPoints, minDist) {
+    for (let p of placedPoints) {
+        if (p.distanceTo(point) < minDist) {
+            return true;
+        }
+    }
+    return false;
+}
 
 // ===================== Domain 4 =====================

@@ -326,44 +326,120 @@ export function createDomain2() {
 // ==========================================
 // DOMAIN 3:
 // ==========================================
-export function createDomain3() {
+export function createDomain3(scene) {
+
+    const texLoader = new THREE.TextureLoader();
+    const domainTex = texLoader.load('assets/road-texture.png');
+
+    domainTex.wrapS = THREE.RepeatWrapping;
+    domainTex.wrapT = THREE.RepeatWrapping;
+
+    domainTex.repeat.set(20, 20);
+
     const material = new THREE.MeshBasicMaterial({
         color: 0x828282, // beige
         side: THREE.BackSide,
         transparent: true,
         opacity: 1.0,
         depthWrite: false,
+        //map: domainTex,
     });
     const group = new THREE.Group();
     const mesh = new THREE.Mesh(baseGeometry, material);
     group.add(mesh);
 
+    const coreLight = new THREE.PointLight(0xffdd55, 10.0, 0, 0);
+    group.add(coreLight);
+    coreLight.position.set(0.0, 0.2, -0.7);
+
+    const glowGeo = new THREE.SphereGeometry(0.2, 16, 16);
+    const glowMat = new THREE.MeshStandardMaterial({
+        color: 0xffe88c,
+        emissive: 0xffff00,
+        emissiveIntensity: 2,
+    });
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+
+    glow.position.copy(coreLight.position);
+    group.add(glow);
+
+    const haloGeo = new THREE.SphereGeometry(0.35, 32, 32);
+    const haloMat = new THREE.MeshBasicMaterial({
+        color: 0xffdd55,
+        transparent: true,
+        opacity: 0.15,
+        depthWrite: false
+    });
+
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    halo.position.copy(coreLight.position);
+    group.add(halo);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    group.add(ambient);
+
+    //scene.fog = new THREE.Fog(0xffdd55, 0.2, 2.0);
+    const fillLight = new THREE.PointLight(0xffcc55, 5, 2);
+    fillLight.position.copy(coreLight.position);
+    group.add(fillLight);
+
+
     //addLightGroundSky(group, 0x00ff00);
 
-    //generateBuildings(group, 700);
+    generateBuildings(group, 400);
+    //const building = createBuildingTest();
+    //group.add(building);
 
-    const geo = new THREE.BoxGeometry( 0.1, 0.4, 0.1 );
-    const mat = new THREE.MeshBasicMaterial( { color: 0xc09156 } );
-    const building = new THREE.Mesh( geo, mat );
-    building.position.y = 0.4 / 2;
-
-    const geo2 = new THREE.ConeGeometry( 0.1, 0.1, 4 );
-    const mat2 = new THREE.MeshBasicMaterial( { color: 0xffff00 } );
-    const cone = new THREE.Mesh(geo2, mat2 );
-    group.add( cone );
-    const geo3 = new THREE.BufferGeometry();
-    const vertices = new Float32Array([
-        0,  1,  0, // 0: Top Tip
-        1,  0,  1, // 1: Front Right
-        1,  0, -1, // 2: Back Right
-        -1,  0, -1, // 3: Back Left
-        -1,  0,  1  // 4: Front Left
-    ]);
-
-    group.add(building);
 
     group.userData = { id: 'domain3', name: 'Hurtbreak Wonderland' };
     return group;
+}
+
+function createBuildingTest() {
+
+    const group = new THREE.Group();
+    const height = 0.2;
+    const width = 0.1;
+    const length = 0.1;
+
+    const texLoader = new THREE.TextureLoader();
+    const buildingTex = texLoader.load('assets/building-texture.png');
+
+    const geo = new THREE.BoxGeometry( length, height, width );
+    //const mat = new THREE.MeshStandardMaterial( { color: 0xc09156 } );
+    const mat = new THREE.MeshStandardMaterial( { map: buildingTex } );
+    const building = new THREE.Mesh( geo, mat );
+    building.position.y = height / 2;
+
+    group.add(building);
+
+    //const roofTex = texLoader.load('assets/roof-texture.png');
+
+    const roof = createRoof();
+    group.add(roof);
+
+
+    return group;
+} // createBuilding
+
+function createRoof() {
+    const roofMats = [
+        new THREE.MeshStandardMaterial({ map: texLoader.load('assets/roof-texture.png') }),
+        new THREE.MeshStandardMaterial({ map: texLoader.load('assets/building-no-window-texture.png') }),
+        new THREE.MeshStandardMaterial({ map: texLoader.load('assets/building-no-window-texture.png') }),
+    ];
+    const roofHeight = width / 2;
+    const geo2 = new THREE.CylinderGeometry( roofHeight, roofHeight, width, 3 );
+    //const mat2 = new THREE.MeshStandardMaterial( { map: roofTex } );
+    const roof = new THREE.Mesh( geo2, roofMats );
+    roof.rotation.x = -Math.PI / 2;
+
+    const random = Math.random();
+    if (random < 0.5) roof.rotation.y = Math.PI / 2;
+
+    roof.position.y = height + (roofHeight / 2);
+
+    return roof;
 }
 
 // TODO: Sidhant
