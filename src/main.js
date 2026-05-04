@@ -8,7 +8,8 @@ import {animateFloatingDebris} from './procedural.js';
 
 // ===================== Scene Variables =====================
 let scene, camera, renderer, controls;
-let domains = []; //
+let domains = []; // i=0->1=3 : largest to smallest
+let domainMeshesCache = []; // Hold all our meshes. When traversing each mesh, we check if
 let gui;
 
 // Animation State
@@ -19,18 +20,23 @@ let state = {
     speed: 0.05,
     zoomProgress: 0.0,
     progressController: null,
-    baseScaleFactor: 20,
+    baseScaleFactor: 25,
     activeDevDomain: 'domain1',
     targetDevScale: 0.5,
-    isPaused: false,
+    isPaused: true,
     shaderTime: 0.0,
 };
 
+// Intro Animation State
 let introComplete = false;
-let introProgress = 0.0; // 0.0 → 1.0
+let introShaderProgress = 0.0; // 0.0 -> 1.0
+// Speed controls for intro
+const introDuration = 5.0; // total intro seconds
+const introStartZ = 1000.0; // starting camera distance
+let introProgress = 0.0; // raw elapsed time in intro
 
-// Intro overlay — a fullscreen quad with a ShaderMaterial
-// rendered in a separate orthographic scene on top
+// Intro overlay - fullscreen quad w/ shader mat
+// rendered in separate orthographic scene on top
 const introScene = new THREE.Scene();
 const introCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const introGeo = new THREE.PlaneGeometry(2, 2);
@@ -82,13 +88,22 @@ function init() {
 
     // Camera
     camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.01, 1000);
-    camera.position.set(0, 0, 1);
+    camera.position.set(0, 0, 8);
 
     // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+
+    // renderer = new THREE.WebGLRenderer({ antialias: true });
+    // renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance', // tells GPU driver to use fast GPU on laptops
+        stencil: false,   // not using stencil buffer
+        depth: true,
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // was 2
+
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = false;
     container.appendChild(renderer.domElement);
 
     // Orbit Controls
@@ -100,6 +115,17 @@ function init() {
 
     // ===================== Create Objects =====================
     createObjects();
+
+    // ===================== Cache Objects =====================
+    domains.forEach(domain => {
+        scene.add(domain);
+        // Build cache for each domain
+        const meshes = [];
+        domain.traverse(child => {
+            if (child.isMesh) meshes.push(child);
+        });
+        domainMeshesCache.push(meshes);
+    });
 
     // ===================== GUI =====================
     setupGUI();
@@ -116,8 +142,8 @@ function init() {
 
     renderer.compile(scene, camera); // compile shaders
 
-    // Start system
-    applyDomainScales();
+    // Start system BUT we want to run intro sequence first
+    applyDomainScales(); // ts makes i=1,2,3 visible
     animate();
 }
 
@@ -194,7 +220,10 @@ function setMode(mode, dir, btnElement) {
     } else {
         controls.enablePan = false;
         controls.enableZoom = false;
-        // domains.forEach(d => d.visible = true);
+        if (introComplete) {
+            camera.position.z = 1;
+            controls.target.set(0, 0, 0);
+        }
     }
 }
 
@@ -211,13 +240,13 @@ function applyDevMode() {
                     child.visible = true;
                     child.material.opacity = 1.0;
                     child.material.transparent = true;
-                    child.material.depthWrite = true; // Force solid depth in Dev Mode
+                    child.material.depthWrite = true; // force solid depth
                 }
                 if (child.isLight) {
                     child.visible = true;
                     if (child.type === 'PointLight') {
-                        // Multiply intensity by the square of the scale
-                        // 5.0 * (20^2) = 2000 intensity.
+                        // Multiply intensity by square of the scale
+                        // 5.0 * (20^2) = 2000 intensity
                         child.intensity = 5.0 * Math.pow(state.targetDevScale, 2);
                     } else {
                         child.intensity = 0.4; // reset ambient to normal
@@ -237,7 +266,7 @@ function applyDomainScales() {
     for (let i = 0; i < domains.length; i++) {
         let domain = domains[i]
 
-        if ((i === 0)) { // hide largest off-screen domain
+        if ((i === 0 && introComplete)) { // hide largest off-screen domain
             domain.visible = false;
             continue;
         }
@@ -252,30 +281,34 @@ function applyDomainScales() {
         let fadeOpacity = exponent + 2.0;
         const finalOpacity = Math.max(0, Math.min(1, fadeOpacity));
 
-        // Traverse each child in the domain
-        domain.traverse((child) => {
-            if (child.isMesh) {
-                child.visible = domain.visible;
-                // child.renderOrder = i; // ensure correct painter's algorithm
-                // alphaTest 0.05 prevents invisible pixels from glitching the depth buffer
-                child.material.alphaTest = 0.05;
-                // only write depth when the sphere is mostly solid (>80%) to stop Z-fighting
-                child.material.depthWrite = (finalOpacity > 0.8);
+        // Recurse each child/group in the domain to update render order and opacity (BOTTLENECK)
+        // domain.traverse((child) => {
+        //     if (child.isMesh) {
+        //         ...
+        //     }
+        // });
 
-                // Render sky first, then others on top
-                if (child.name === "Sky") {
-                    child.renderOrder = i*10;
-                } else {
-                    child.renderOrder = (i*10) + 1;
-                }
+        // Linearly traverse array of children neatly
+        domainMeshesCache[i].forEach((child) => {
+            child.visible = domain.visible;
+            child.renderOrder = i; // ensure correct painter's algorithm
+            // alphaTest 0.05 prevents invisible pixels from glitching the depth buffer
+            child.material.alphaTest = 0.05;
+            // only write depth when the sphere is mostly solid (>80%) to stop Z-fighting
+            child.material.depthWrite = (finalOpacity > 0.8);
 
-                if (child.material.uniforms && child.material.uniforms.u_local_opacity) {
-                    // If custom shader, fade it via uniform.
-                    child.material.uniforms.u_local_opacity.value = finalOpacity;
-                } else {
-                    // If normal material, fade normally.
-                    child.material.opacity = finalOpacity;
-                }
+            // Render sky first, then others on top
+            if (child.name === "Sky") {
+                child.renderOrder = i*10;
+            } else {
+                child.renderOrder = (i*10) + 1;
+            }
+
+            // If custom shader found, fade it via uniform. Else, fade normally
+            if (child.material.uniforms && child.material.uniforms.u_local_opacity) {
+                child.material.uniforms.u_local_opacity.value = finalOpacity;
+            } else {
+                child.material.opacity = finalOpacity;
             }
         });
     }
@@ -285,38 +318,73 @@ function applyDomainScales() {
 function shiftDomainsForward() {
     const passedDomain = domains.shift(); // removes first (biggest) outer-domain from array
     domains.push(passedDomain); // move outer-domain to end (smallest)
+    domainMeshesCache.push(domainMeshesCache.shift());
 }
 
 function shiftDomainsBackward() {
     const coreDomain = domains.pop(); // removes last (tiniest) domain
     domains.unshift(coreDomain); // move domain to beginning (biggest) outer-domain
+    domainMeshesCache.unshift(domainMeshesCache.pop());
 }
 
 // ===================== Render Loop =====================
+
 function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
     state.shaderTime += state.speed * delta * state.direction;
 
-    if (!introComplete) {
-        introProgress += delta * 0.2; // controls intro duration (~2.5 seconds)
-        introMat.uniforms.u_progress.value = introProgress;
+
+    // Intro "Cutscene" on Play pressed
+    if (!introComplete && state.mode !== 'dev' && !state.isPaused) {
+        introProgress += delta;
+
+        // Intro shader duration (15% of introDuration)
+        introShaderProgress = Math.min(introProgress / (introDuration * 0.15), 1.0);
+        introMat.uniforms.u_progress.value = introShaderProgress;
         introMat.uniforms.u_time.value += delta;
 
-        // Render main scene underneath
+        // Camera Zoom: Quintic Ease Out
+        const t = Math.min(introProgress / introDuration, 1.0);
+        // Quintic Ease Out: 1 - (1 - t)^5
+        // Starts fast, then slows into Z=1
+        const eased = 1 - Math.pow(1 - t, 6);
+
+        camera.position.z = introStartZ - (introStartZ - 1.0) * eased; // zoom to 1.0
+
+        // Last 25% of intro, gradually start the zoom (domain scaling)
+        if (t > 0.75) {
+            const blendT = (t - 0.75) / 0.25; // 0.0 -> 1.0 over the last 25%
+            state.zoomProgress += state.speed * delta * blendT;
+            applyDomainScales(); // Update the domain scales behind the scenes!
+        }
+
+        // Render main scene underneath intro overlay
         renderer.render(scene, camera);
         // Render intro overlay on top (autoClear=false prevents wiping the scene)
         renderer.autoClear = false;
         renderer.render(introScene, introCamera);
         renderer.autoClear = true;
 
-        if (introProgress >= 1.0) {
+        // End of Intro
+        if (t >= 1.0) {
             introComplete = true;
-            state.isPaused = false; // start the zoom loop
+            camera.position.z = 1;
+            controls.target.set(0, 0, 0);
+            state.isPaused = false; // starts zoom loop
         }
-        return; // skip normal loop logic during intro
+
+        controls.update();
+        state.progressDisplay.updateDisplay();
+
+        // Let shaders run during intro
+        globalUniforms.u_time.value = state.shaderTime;
+
+        return; // skips normal loop logic during intro
     }
 
+
+    // Zoom Loop
     if ((state.mode === 'play' || state.mode === 'reverse') && !state.isPaused) {
         state.zoomProgress += state.speed * delta * state.direction;
 
@@ -334,9 +402,8 @@ function animate() {
     globalUniforms.u_time.value = state.shaderTime;
     // animateFloatingDebris(state.shaderTime);
 
-    state.progressDisplay.updateDisplay();
-    camera.updateProjectionMatrix()
     controls.update();
+    state.progressDisplay.updateDisplay();
     renderer.render(scene, camera);
 }
 
