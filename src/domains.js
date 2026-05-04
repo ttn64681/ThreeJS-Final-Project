@@ -326,7 +326,7 @@ export function createDomain2() {
 // ==========================================
 // DOMAIN 3:
 // ==========================================
-export function createDomain3(scene) {
+export function createDomain3() {
 
     const texLoader = new THREE.TextureLoader();
     const domainTex = texLoader.load('assets/road-texture.png');
@@ -337,51 +337,68 @@ export function createDomain3(scene) {
     domainTex.repeat.set(20, 20);
 
     const material = new THREE.MeshBasicMaterial({
-        color: 0x828282, // beige
+        //color: 0x828282, // beige
         side: THREE.BackSide,
         transparent: true,
         opacity: 1.0,
         depthWrite: false,
-        //map: domainTex,
+        map: domainTex,
     });
+
+    // material.onBeforeCompile = (shader) => {
+    //     shader.uniforms.uFogColor = { value: new THREE.Color(0xffdd88) };
+    //     shader.uniforms.uFogNear = { value: 0.2 };
+    //     shader.uniforms.uFogFar = { value: 1.2 };
+    //
+    //     shader.fragmentShader = shader.fragmentShader.replace(
+    //         `#include <dithering_fragment>`,
+    //         `
+    //         // distance from camera
+    //         float depth = gl_FragCoord.z / gl_FragCoord.w;
+    //
+    //         float fogFactor = smoothstep(uFogNear, uFogFar, depth);
+    //
+    //         gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
+    //
+    //         #include <dithering_fragment>
+    //         `
+    //     );
+    // };
+
     const group = new THREE.Group();
     const mesh = new THREE.Mesh(baseGeometry, material);
     group.add(mesh);
 
-    const coreLight = new THREE.PointLight(0xffdd55, 10.0, 0, 0);
+    const coreLight = new THREE.PointLight(0xffdd55, 3.0, 0, 0);
     group.add(coreLight);
-    coreLight.position.set(0.0, 0.2, -0.7);
+    coreLight.position.set(0.0, 0.2, 0.7);
 
-    const glowGeo = new THREE.SphereGeometry(0.2, 16, 16);
-    const glowMat = new THREE.MeshStandardMaterial({
-        color: 0xffe88c,
-        emissive: 0xffff00,
-        emissiveIntensity: 2,
-    });
-    const glow = new THREE.Mesh(glowGeo, glowMat);
 
-    glow.position.copy(coreLight.position);
-    group.add(glow);
-
-    const haloGeo = new THREE.SphereGeometry(0.35, 32, 32);
-    const haloMat = new THREE.MeshBasicMaterial({
-        color: 0xffdd55,
-        transparent: true,
-        opacity: 0.15,
-        depthWrite: false
-    });
-
-    const halo = new THREE.Mesh(haloGeo, haloMat);
-    halo.position.copy(coreLight.position);
-    group.add(halo);
+    // const glowGeo = new THREE.SphereGeometry(0.2, 16, 16);
+    // const glowMat = new THREE.MeshStandardMaterial({
+    //     color: 0xffe88c,
+    //     emissive: 0xffff00,
+    //     emissiveIntensity: 2,
+    // });
+    // const glow = new THREE.Mesh(glowGeo, glowMat);
+    //
+    // glow.position.copy(coreLight.position);
+    // group.add(glow);
+    //
+    // const haloGeo = new THREE.SphereGeometry(0.35, 32, 32);
+    // const haloMat = new THREE.MeshBasicMaterial({
+    //     color: 0xffdd55,
+    //     transparent: true,
+    //     opacity: 0.15,
+    //     depthWrite: false
+    // });
+    //
+    // const halo = new THREE.Mesh(haloGeo, haloMat);
+    // halo.position.copy(coreLight.position);
+    // group.add(halo);
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.7);
     group.add(ambient);
-
-    //scene.fog = new THREE.Fog(0xffdd55, 0.2, 2.0);
-    const fillLight = new THREE.PointLight(0xffcc55, 5, 2);
-    fillLight.position.copy(coreLight.position);
-    group.add(fillLight);
 
 
     //addLightGroundSky(group, 0x00ff00);
