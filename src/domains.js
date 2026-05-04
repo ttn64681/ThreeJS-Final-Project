@@ -9,7 +9,10 @@ const groundGeometry = createGridCircleGeometry(0.98, 64);
 
 // Shader constants to animate
 export const globalUniforms = {
-    u_time: { value: 0.0 }
+    u_time: { value: 0.0 },
+    u_color: { value: new THREE.Color(0xffaaaa) },
+    u_power: { value: 2.0 },  // higher = tighter rim
+    u_intensity: { value: 2.0 }
 };
 
 // Problem w/ just a Circle Geo: it draws triangles from a single center vertex
@@ -49,7 +52,7 @@ function addLightGroundSky(group, color) {
     // Set decay to 0 to stop physics engine from killing light when room scales
     const sun = new THREE.PointLight(color, 5.0, 0, 0);
     sun.position.set(0, 0.5, 0);
-    sun.castShadow = true;
+    sun.castShadow = false;
     group.add(sun);
 
     const groundMat = new THREE.MeshStandardMaterial({
@@ -60,7 +63,7 @@ function addLightGroundSky(group, color) {
         metalness: 0.1,
         roughness: 0.8
     });
-    const ground = new THREE.Mesh(groundGeometry.clone(), groundMat);
+    const ground = new THREE.Mesh(groundGeometry, groundMat);
     ground.rotation.x = -Math.PI / 2; // lay flat
     ground.position.y = -0.2; // slightly below center
     group.add(ground);
@@ -281,7 +284,7 @@ export function createDomain1() {
             }
         `
     });
-    const sky = new THREE.Mesh(baseGeometry.clone(), skyMat)
+    const sky = new THREE.Mesh(baseGeometry, skyMat)
     sky.name = "Sky";
 
     group.add(sky);
@@ -364,20 +367,20 @@ export function createDomain1() {
         );
     };
 
-    const ground = new THREE.Mesh(groundGeometry.clone(), waterMat);
+    const ground = new THREE.Mesh(groundGeometry, waterMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.2;
     group.add(ground);
 
     const sunLight1 = new THREE.PointLight(0xaa55ff, 3.0, 0, 0);
     sunLight1.position.set(0.5, 0.5, 0);
-    sunLight1.castShadow = true;
+    sunLight1.castShadow = false
     // sunLight1.target.position.set(0.0, 0.0, 0);
     group.add(sunLight1, sunLight1.target);
 
     const sunLight2 = new THREE.PointLight(0xff27aa, 3.0, 0, 0);
     sunLight2.position.set(-0.5, 0.5, 0);
-    sunLight2.castShadow = true;
+    sunLight2.castShadow = false;
     // sunLight2.target.position.set(0.0, 0.0, 0);
     group.add(sunLight2, sunLight2.target);
 
@@ -398,9 +401,9 @@ export function createDomain1() {
     const rimGeo = new THREE.SphereGeometry(0.085, 32, 32);
     const rimMat = new THREE.ShaderMaterial({
         uniforms: {
-            u_color: { value: new THREE.Color(0xffaaaa) },
-            u_power: { value: 3.0 },  // higher = tighter rim
-            u_intensity: { value: 1.5 }
+            u_color: globalUniforms.u_color,
+            u_power: globalUniforms.u_power, // higher = tighter rim
+            u_intensity: globalUniforms.u_intensity
         },
         side: THREE.BackSide, // render inside of sphere = rim appears around outside
         transparent: true,
@@ -602,7 +605,7 @@ export function createDomain2() {
             }
         `
     });
-    const sky = new THREE.Mesh(baseGeometry.clone(), skyMat)
+    const sky = new THREE.Mesh(baseGeometry, skyMat)
     sky.name = "Sky";
 
     group.add(sky);
@@ -615,13 +618,13 @@ export function createDomain2() {
     const ground = new THREE.Mesh(rockyGeo, rockMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.2;
-    // ground.receiveShadow = true;
-    warpTerrain(ground);
+    ground.receiveShadow = false;
+    warpTerrain(ground); // We warp via CPU to use Raycaster to spawn points randomly
     group.add(ground);
 
     const sun = new THREE.DirectionalLight(0x00ff88, 5.0);
     sun.position.set(0, 0.5, 0);
-    sun.castShadow = true;
+    sun.castShadow = false;
     group.add(sun);
 
     const crossGroup = new THREE.Group();

@@ -2,7 +2,9 @@ import * as THREE from 'three';
 
 // ===================== Domain 1 =====================
 
-// ====== Constants ======
+// =====================================
+// ============= Constants =============
+// =====================================
 
 export const floatingDebris = []; // tracks everything that needs to bob on water
 
@@ -12,13 +14,43 @@ function smoothstep(min, max, value) {
     return x * x * (3 - 2 * x);
 }
 
+// =====================================
+// =============== SKULL ===============
+// =====================================
+// Shared Skull Material
 const skullMat = new THREE.MeshStandardMaterial({
-    color: 0xd4c9a8,  // aged bone yellow-white
+    color: 0xd4c9a8, // aged bone yellow-white
     roughness: 0.85,
     metalness: 0.0,
 });
-const socketMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 1.0 });
+// Cranium - slightly flattened sphere
+const skullCraniumGeo = new THREE.SphereGeometry(0.06, 12, 10);
+skullCraniumGeo.scale(1.0, 0.9, 0.85); // flatten slightly
+const skullCranium = new THREE.Mesh(skullCraniumGeo, skullMat);
+skullCranium.position.y = 0.065;
+// Jaw - smaller flattened half-sphere
+const skullJawGeo = new THREE.SphereGeometry(0.045, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+skullJawGeo.scale(1.0, 0.6, 0.8);
+const skullJaw = new THREE.Mesh(skullJawGeo, skullMat);
+skullJaw.position.y = 0.02;
+skullJaw.rotation.x = Math.PI; // flip so opening faces down
+// Eye sockets - two dark recessed spheres
+const skullSocketMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 1.0 });
+const skullSocketGeo = new THREE.SphereGeometry(0.018, 8, 8);
+const skullSocket = new THREE.Mesh(skullSocketGeo, skullSocketMat);
+// Nasal cavity
+const skullNoseGeo = new THREE.SphereGeometry(0.012, 6, 6);
+skullNoseGeo.scale(0.7, 1.0, 1.0);
+const skullNose = new THREE.Mesh(skullNoseGeo, skullSocketMat);
+skullNose.position.set(0, 0.045, 0.055);
+// Tooth Boxes
+const skullToothGeo = new THREE.BoxGeometry(0.008, 0.012, 0.008);
+const skullTooth = new THREE.Mesh(skullToothGeo, skullMat);
 
+
+// =====================================
+// =========== BULL SKULL ==============
+// =====================================
 const bullSkullMat = new THREE.MeshStandardMaterial({
     color: 0xc8b99a,
     roughness: 0.9,
@@ -26,8 +58,11 @@ const bullSkullMat = new THREE.MeshStandardMaterial({
 });
 const darkMat = new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 1.0 });
 
+// =====================================
+// =============== BONE ================
+// =====================================
 const boneMat = new THREE.MeshStandardMaterial({
-    color: 0xcec0a0, // slight color variation
+    color: 0xcec7a8,
     roughness: 0.8,
     metalness: 0.0,
 });
@@ -73,9 +108,9 @@ export function spawnBonePiles(group, groundMesh, count) {
                 // 5% chance (0.95 to 1.00)
                 item = new THREE.Group();
                 const s1 = createSkull();
-                s1.position.set(0.04, 0, 0);
+                s1.position.set(0.15, 0, 0);
                 const s2 = createBullSkull();
-                s2.position.set(-0.04, 0, 0);
+                s2.position.set(-0.15, 0, .04);
                 s2.rotation.y = Math.PI / 2;
                 item.add(s1);
                 item.add(s2);
@@ -83,9 +118,9 @@ export function spawnBonePiles(group, groundMesh, count) {
 
             item.position.copy(hit.point);
             item.rotation.y = Math.random() * Math.PI * 2;
-            item.scale.set(0.3, 0.5, 0.3);
+            item.scale.set(0.3, 0.3, 0.3);
 
-            // Bouyancy (bobbing) setup
+            // Buoyancy (bobbing) setup
             const dist = Math.sqrt(hit.point.x * hit.point.x + hit.point.z * hit.point.z);
 
             item.userData = {
@@ -105,45 +140,23 @@ export function spawnBonePiles(group, groundMesh, count) {
 
 export function createSkull() {
     const group = new THREE.Group();
-
-    // Cranium - slightly flattened sphere
-    const craniumGeo = new THREE.SphereGeometry(0.06, 12, 10);
-    craniumGeo.scale(1.0, 0.9, 0.85); // flatten slightly
-    const cranium = new THREE.Mesh(craniumGeo, skullMat);
-    cranium.position.y = 0.065;
-    group.add(cranium);
-
-    // Jaw - smaller flattened half-sphere
-    const jawGeo = new THREE.SphereGeometry(0.045, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-    jawGeo.scale(1.0, 0.6, 0.8);
-    const jaw = new THREE.Mesh(jawGeo, skullMat);
-    jaw.position.y = 0.02;
-    jaw.rotation.x = Math.PI; // flip so opening faces down
-    group.add(jaw);
-
-    // Eye sockets - two dark recessed spheres
-    const socketGeo = new THREE.SphereGeometry(0.018, 8, 8);
+    group.add(skullCranium.clone());
+    group.add(skullJaw.clone());
     [-0.025, 0.025].forEach(xOffset => {
-        const socket = new THREE.Mesh(socketGeo, socketMat);
-        socket.position.set(xOffset, 0.07, 0.048);
-        group.add(socket);
+        const skull = skullNose.clone()
+        skull.position.set(xOffset, 0.07, 0.0);
+        group.add(skull);
     });
-
-    // Nasal cavity
-    const noseGeo = new THREE.SphereGeometry(0.012, 6, 6);
-    noseGeo.scale(0.7, 1.0, 1.0);
-    const nose = new THREE.Mesh(noseGeo, socketMat);
-    nose.position.set(0, 0.045, 0.055);
-    group.add(nose);
-
-    // Teeth — small boxes along jaw
+    group.add(skullNose.clone());
     for (let i = -2; i <= 2; i++) {
-        const toothGeo = new THREE.BoxGeometry(0.008, 0.012, 0.008);
-        const tooth = new THREE.Mesh(toothGeo, skullMat);
+        const tooth = skullTooth.clone()
         tooth.position.set(i * 0.011, 0.01, 0.03 + Math.abs(i) * -0.003);
         group.add(tooth);
     }
 
+    group.rotation.x = (Math.random() - 0.5) * 0.4
+    group.rotation.y = Math.random() * Math.PI * 2
+    group.rotation.z = (Math.random() - 0.5) * 0.4
     return group;
 }
 
@@ -153,13 +166,14 @@ export function createBullSkull() {
     // Wide flat cranium
     const craniumGeo = new THREE.SphereGeometry(0.09, 10, 8);
     craniumGeo.scale(1.3, 0.7, 1.0);
-    group.add(new THREE.Mesh(craniumGeo, bullSkullMat));
+    const bullSkull = new THREE.Mesh(craniumGeo, bullSkullMat)
+    group.add(bullSkull);
 
     // Snout - elongated box
-    const snoutGeo = new THREE.BoxGeometry(0.08, 0.055, 0.12);
-    const snout = new THREE.Mesh(snoutGeo, bullSkullMat);
-    snout.position.set(0, -0.025, 0.1);
-    group.add(snout);
+    const bullSnoutGeo = new THREE.BoxGeometry(0.08, 0.055, 0.12);
+    const bullSnout = new THREE.Mesh(bullSnoutGeo, bullSkullMat);
+    bullSnout.position.set(0, -0.025, 0.1);
+    group.add(bullSnout);
 
     // Horns - curved using TubeGeometry along a CatmullRomCurve3
     [-1, 1].forEach(side => {
@@ -175,9 +189,9 @@ export function createBullSkull() {
 
     // Eye sockets
     [-0.038, 0.038].forEach(x => {
-        const socket = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), darkMat);
-        socket.position.set(x, 0.015, 0.055);
-        group.add(socket);
+        const bullSocket = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), darkMat);
+        bullSocket.position.set(x, 0.015, 0.055);
+        group.add(bullSocket);
     });
 
     // Nostril holes
@@ -186,6 +200,11 @@ export function createBullSkull() {
         nostril.position.set(x, -0.025, 0.155);
         group.add(nostril);
     });
+
+    group.position.y = -0.05
+    group.rotation.x = (Math.random() - 0.5) * 0.4
+    group.rotation.y = Math.random() * Math.PI * 2
+    group.rotation.z = (Math.random() - 0.5) * 0.4
 
     return group;
 }
@@ -362,7 +381,7 @@ function randomPointOnCircleGrid(centerOffset, edgeOffset) {
 export function createSword() {
     const swordGroup = new THREE.Group();
 
-    // --- Randomization ---
+    // Random Blade/Handle Length
     const lengthMult = 0.7 + Math.random() * 0.6; // 0.7x-1.3x length
 
     // Japanese sword hilt colors (tsuba)
@@ -378,8 +397,7 @@ export function createSword() {
     ];
     const tsubaColor = tsubaColors[Math.floor(Math.random() * tsubaColors.length)];
 
-    // --- Blade ---
-    // Custom tapered shape for tapered blade instead of BoxGeometry
+    // Blade - custom tapered shape for tapered blade instead of BoxGeometry
     const bladeShape = new THREE.Shape();
     bladeShape.moveTo(-0.018, 0);       // base left
     bladeShape.lineTo(0.018, 0);        // base right
@@ -387,7 +405,7 @@ export function createSword() {
     bladeShape.lineTo(-0.001, 0.45 * lengthMult); // near tip left
     bladeShape.closePath();
 
-    // Give it slight depth with extrude
+    // Slight blade depth via extrude geo
     const bladeExtrudeGeo = new THREE.ExtrudeGeometry(bladeShape, {
         depth: 0.006,
         bevelEnabled: true,
@@ -399,8 +417,7 @@ export function createSword() {
     blade.position.y *= lengthMult; // center blade vertically
     swordGroup.add(blade);
 
-    // --- Tsuba (oval guard) ---
-    // Use LatheGeometry to make an oval/disc shape
+    // Tsuba (oval guard) - oval/disc shape via lathe geo
     const tsubaPoints = [
         new THREE.Vector2(0, -0.008),
         new THREE.Vector2(0.07, -0.004),
@@ -421,7 +438,7 @@ export function createSword() {
 
     const scaleFactor = 0.6;
 
-    // --- Handle (tapered cylinder) ---
+    // Handle - tapered cylinder geo
     const handleHeight = 0.14 * lengthMult;
     const handleGeo = new THREE.CylinderGeometry(
         0.012,              // top radius (narrower near tsuba)
@@ -435,7 +452,7 @@ export function createSword() {
     handle.scale.set(scaleFactor, scaleFactor, scaleFactor);
     swordGroup.add(handle);
 
-    // --- Pommel (rounded end cap) ---
+    // Pommel - rounded end cap via sphere geo
     const pommelRadius = 0.022;
     const pommelGeo = new THREE.SphereGeometry(pommelRadius, 8, 8);
     const pommelMat = new THREE.MeshStandardMaterial({
@@ -475,9 +492,9 @@ function createCross() {
     const beamWidth = 0.25 * scaleMult;
     const thickness = 0.04 * scaleMult;
 
-    // The vertical wooden post
+    // Vertical wooden post
     const postGeo = new THREE.BoxGeometry(thickness, postHeight, thickness);
-    // The horizontal wooden beam
+    // Horizontal wooden beam
     const beamGeo = new THREE.BoxGeometry(beamWidth, thickness, thickness);
     const woodMat = new THREE.MeshStandardMaterial({
         color: woodColor,
@@ -486,9 +503,9 @@ function createCross() {
     });
 
     const post = new THREE.Mesh(postGeo, woodMat);
-    post.position.y = postHeight / 2; // move up so origin is at the bottom tip
+    post.position.y = postHeight / 2; // move up so origin is at bottom tip
     const beam = new THREE.Mesh(beamGeo, woodMat);
-    beam.position.y = postHeight * 0.72; // place beam near the top
+    beam.position.y = postHeight * 0.72; // place beam near top
 
     crossGroup.add(post);
     crossGroup.add(beam);
@@ -764,6 +781,7 @@ function isTooClose(point, placedPoints, minDist) {
 // ===================== Domain 4 =====================
 
 // ===================== Animation =====================
+
 export function animateFloatingDebris(time) {
     for (let i = 0; i < floatingDebris.length; i++) {
         const obj = floatingDebris[i];
