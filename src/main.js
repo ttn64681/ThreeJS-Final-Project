@@ -4,6 +4,7 @@ import GUI from 'lil-gui';
 
 // Import domain generation functions from your separate file
 import {createDomain1, createDomain2, createDomain3, createDomain4, globalUniforms} from './domains.js';
+import {animateFloatingDebris} from './procedural.js';
 
 // ===================== Scene Variables =====================
 let scene, camera, renderer, controls;
@@ -25,6 +26,53 @@ let state = {
     shaderTime: 0.0,
 };
 
+let introComplete = false;
+let introProgress = 0.0; // 0.0 → 1.0
+
+// Intro overlay — a fullscreen quad with a ShaderMaterial
+// rendered in a separate orthographic scene on top
+const introScene = new THREE.Scene();
+const introCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const introGeo = new THREE.PlaneGeometry(2, 2);
+const introMat = new THREE.ShaderMaterial({
+    uniforms: {
+        u_progress: { value: 0.0 }, // drives the warp/explosion
+        u_time: { value: 0.0 }
+    },
+    transparent: true,
+    depthWrite: false,
+    vertexShader: `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+        uniform float u_progress; // 0=start, 1=fully zoomed in/done
+        uniform float u_time;
+        varying vec2 vUv;
+
+        void main() {
+            vec2 center = vUv - 0.5; // -0.5 to 0.5, centered
+            float dist = length(center);
+
+            // Warp: UV spirals/contracts toward center as progress increases
+            float angle = atan(center.y, center.x);
+            float warp = dist * (1.0 - u_progress * 2.0); // shrinks to zero
+
+            // Ripple outward from center
+            float ring = sin(dist * 30.0 - u_time * 10.0) * 0.5 + 0.5;
+
+            // Fade out as progress -> 1.0
+            float alpha = 1.0 - smoothstep(0.6, 1.0, u_progress);
+
+            // Dark vortex color
+            vec3 color = mix(vec3(0.0), vec3(0.5, 0.0, 0.0), ring * (1.0 - u_progress));
+            gl_FragColor = vec4(color, alpha);
+        }
+    `
+});
+const introQuad = new THREE.Mesh(introGeo, introMat);
+introScene.add(introQuad);
+
 // ===================== Init =====================
 function init() {
     const container = document.getElementById('canvas-container');
@@ -40,6 +88,7 @@ function init() {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
 
     // Orbit Controls
@@ -247,10 +296,29 @@ function shiftDomainsBackward() {
 function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
+    state.shaderTime += state.speed * delta * state.direction;
+
+    if (!introComplete) {
+        introProgress += delta * 0.2; // controls intro duration (~2.5 seconds)
+        introMat.uniforms.u_progress.value = introProgress;
+        introMat.uniforms.u_time.value += delta;
+
+        // Render main scene underneath
+        renderer.render(scene, camera);
+        // Render intro overlay on top (autoClear=false prevents wiping the scene)
+        renderer.autoClear = false;
+        renderer.render(introScene, introCamera);
+        renderer.autoClear = true;
+
+        if (introProgress >= 1.0) {
+            introComplete = true;
+            state.isPaused = false; // start the zoom loop
+        }
+        return; // skip normal loop logic during intro
+    }
 
     if ((state.mode === 'play' || state.mode === 'reverse') && !state.isPaused) {
         state.zoomProgress += state.speed * delta * state.direction;
-        state.shaderTime += state.speed * delta * state.direction;
 
         // Loop from 0.0-1.0
         if (state.zoomProgress >= 1.0) {
@@ -264,6 +332,7 @@ function animate() {
     }
 
     globalUniforms.u_time.value = state.shaderTime;
+    // animateFloatingDebris(state.shaderTime);
 
     state.progressDisplay.updateDisplay();
     camera.updateProjectionMatrix()
@@ -271,4 +340,5 @@ function animate() {
     renderer.render(scene, camera);
 }
 
+state.isPaused = true;
 init();
