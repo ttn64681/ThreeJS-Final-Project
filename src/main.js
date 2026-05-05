@@ -106,6 +106,8 @@ function init() {
     renderer.shadowMap.enabled = false;
     container.appendChild(renderer.domElement);
 
+    renderer.physicallyCorrectLights = true;
+
     // Orbit Controls
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;

@@ -1,6 +1,14 @@
 import * as THREE from 'three';
 
-import {spawnBonePiles, warpTerrain, spawnSwords, spawnCrosses, generateBuildings} from './procedural.js';
+import {
+    spawnBonePiles,
+    warpTerrain,
+    spawnSwords,
+    spawnCrosses,
+    generateBuildings,
+    createDoor,
+    generateDoors
+} from './procedural.js';
 
 // Single sphere geometry for the "Sky" (use .clone())
 const baseGeometry = new THREE.SphereGeometry(1, 64, 64);
@@ -791,7 +799,31 @@ export function createDomain4() {
     const mesh = new THREE.Mesh(baseGeometry, material);
     group.add(mesh);
 
-    addLightGroundSky(group, 0xcccccc);
+    const doorGroup = new THREE.Group();
+    generateDoors(doorGroup);
+    doorGroup.position.y = 0.6;
+    doorGroup.rotation.x = Math.PI;
+    group.add(doorGroup);
+
+    // Ground and Lights
+    const rockyGeo = groundGeometry.clone();
+    const rockMat = new THREE.MeshStandardMaterial({
+        color: 0x334433, roughness: 0.9, transparent: true, depthWrite: false, side: THREE.DoubleSide
+    });
+    const ground = new THREE.Mesh(rockyGeo, rockMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.2;
+    ground.receiveShadow = false;
+    warpTerrain(ground); // We warp via CPU to use Raycaster to spawn points randomly
+    group.add(ground);
+
+    // const geo = new THREE.CircleGeometry( 0.8, 32 );
+    // const mat = new THREE.MeshBasicMaterial( { color: 0xffff00 } );
+    // const circle = new THREE.Mesh( geo, mat );
+    // circle.position.y = 0.6;
+    // circle.rotation.x = -Math.PI / 2;
+    // group.add(circle)
+
 
     group.userData = { id: 'domain4', name: 'Domain 4' };
     return group;

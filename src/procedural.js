@@ -780,6 +780,128 @@ function isTooClose(point, placedPoints, minDist) {
 
 // ===================== Domain 4 =====================
 
+export function createDoor(width, length) {
+
+    const door = new THREE.Group();
+
+    const doorColors = [
+        0x5e7488,
+        0x8f4338, // redish
+        0xbcb7a2, // beige i think
+        0xa78581, //
+        0x25404c,
+        0x748ca1,
+        0x616e77,
+    ];
+
+    const height = 0.005
+
+    const randomColor = doorColors[Math.floor(Math.random() * doorColors.length)];
+    const geo = new THREE.BoxGeometry(width, height, length);
+    const mat = new THREE.MeshStandardMaterial({ color: randomColor });
+    const base = new THREE.Mesh(geo, mat);
+    door.add(base);
+
+    const geo2 = new THREE.BoxGeometry(0.003, 0.001, 0.01);
+    const mat2Color = (Math.random() < 0.5) ? 0x848482 : 0x050505;
+    const mat2 = new THREE.MeshBasicMaterial({ color: mat2Color });
+    const knob = new THREE.Mesh(geo2, mat2);
+    knob.position.set(-(width / 2) + 0.0075, -((height / 2) + 0.001), 0);
+    door.add(knob);
+
+
+    const marginX = 0.01;
+    const marginZ = 0.01;
+    const verticalOffset = length * 0.15;
+
+
+    const maxWindowW = width - marginX * 2;
+    const maxWindowL = length - marginZ * 2;
+
+    const minWindowW = maxWindowW * 0.3;
+    const minWindowL = maxWindowL * 0.2;
+
+    const windowS = 0.02 + Math.random() * ((width - 0.08) - 0.02);
+    const windowW = minWindowW + Math.random() * (maxWindowW - minWindowW);
+    const windowL = minWindowL + Math.random() * (maxWindowL - minWindowL);
+    let geo3;
+    if (Math.random() < 0.5) {
+        geo3 = new THREE.BoxGeometry(windowW, 0.001, windowL);
+    } else {
+        let windowSegments = [6, 8, 32];
+        geo3 = new THREE.CylinderGeometry( windowS, windowS, 0.002, windowSegments[Math.floor(Math.random() * windowSegments.length)]);
+    }
+    const mat3 = new THREE.MeshPhysicalMaterial({
+        color: 0x88ccee,
+        metalness: 0,
+        roughness: 0.1,
+        transmission: 0.9,
+        transparent: true,
+        opacity: 0.6,
+        thickness: 0.01,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
+    });
+    const window = new THREE.Mesh(geo3, mat3);
+    window.position.y = -((height / 2) + 0.001);
+    //window.position.z = -(length / 2) + 0.03;
+    door.add(window);
+
+    // const frameThickness = 0.002;
+    //
+    // const frameGeo = new THREE.BoxGeometry(
+    //     windowW + frameThickness,
+    //     0.002,
+    //     windowL + frameThickness
+    // );
+    //
+    // const frameMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    // const frame = new THREE.Mesh(frameGeo, frameMat);
+    //
+    // frame.position.copy(window.position);
+    // frame.position.y -= 0.0005;
+    //
+    // door.add(frame);
+
+    return door;
+
+
+}
+
+export function generateDoors(group) {
+    const rows = 10;
+    const cols = 36;
+
+    const spacingX = 0.04;
+    const spacingZ = 0.08;
+
+    const startX = -(cols * spacingX) / 2;
+    const startZ = -(rows * spacingZ) / 2;
+
+    for (let r = 0; r < rows; r++) {
+
+        const baseWidth = 0.04;
+        const rowWidth = baseWidth + Math.sin(r * 0.5) * 0.01;
+
+        for (let c = 0; c < cols; c++) {
+            const length = 0.08 + Math.random() * (0.10 - 0.08);
+
+            const door = createDoor(rowWidth, length);
+            const x = startX + c * spacingX;
+            const z = startZ + r * spacingZ;
+
+            //door.position.set(x, 0, z);
+
+            const jitterX = (Math.random() - 0.5) * 0.01;
+            const jitterZ = (Math.random() - 0.5) * 0.01;
+            door.position.set(x + jitterX, 0, z + jitterZ);
+
+            group.add(door);
+        }
+    }
+
+}
+
 // ===================== Animation =====================
 
 export function animateFloatingDebris(time) {
@@ -795,7 +917,7 @@ export function animateFloatingDebris(time) {
 
         const waterHeight = (wave1 + wave2) * centerFade;
 
-        // Inidividual bobbing
+        // Individual bobbing
         const bob = Math.sin(time * obj.userData.bobSpeed + obj.userData.bobPhase) * 0.005;
 
         // Set height
