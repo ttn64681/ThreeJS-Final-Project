@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 import {
     spawnBonePiles,
@@ -30,7 +32,7 @@ function createGridCircleGeometry(radius, segments) {
     const size = radius * 2;
     const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
     // To create square grid
-    const pos = geometry.attributes.position; // we manually add position points to create grid
+    const pos = geometry.attributes.position; // manually add position points to create grid
 
     // Loop through every vertex on the square
     for (let i = 0; i < pos.count; i++) {
@@ -58,7 +60,8 @@ function addLightGroundSky(group, color) {
 
     // Set distance to 0 for infinite range.
     // Set decay to 0 to stop physics engine from killing light when room scales
-    const sun = new THREE.PointLight(color, 5.0, 0, 0);
+    // distance/decay overridden each frame in applyDomainScales from shell scale; defaults avoid infinite reach.
+    const sun = new THREE.PointLight(color, 5.0, 1, 2);
     sun.position.set(0, 0.5, 0);
     sun.castShadow = false;
     group.add(sun);
@@ -300,9 +303,6 @@ export function createDomain1() {
     const ambient = new THREE.AmbientLight(0xffaaaa, 0.3);
     group.add(ambient);
 
-    // Water for ground + Shader
-    // const waterGeo = createGridCircleGeometry(0.98, 128);
-
     // Water reflective shader material
     const waterMat = new THREE.MeshStandardMaterial({
         color: 0xff2222, // bright red
@@ -314,7 +314,7 @@ export function createDomain1() {
     });
 
     // for compilation optimization
-    waterMat.customProgramCacheKey = function() { return 'water_shader'; }; //
+    waterMat.customProgramCacheKey = function() { return 'water_shader'; };
 
     // Hijack shader to add ripples to the original three.js prebuilt shader on water material
     // this prevents me from needing to write my own custom reflection shader.
@@ -386,11 +386,33 @@ export function createDomain1() {
     // sunLight1.target.position.set(0.0, 0.0, 0);
     group.add(sunLight1, sunLight1.target);
 
-    const sunLight2 = new THREE.PointLight(0xff27aa, 3.0, 0, 0);
+    const sunLight2 = new THREE.PointLight(0xff27aa, 3.0, 1, 2);
     sunLight2.position.set(-0.5, 0.5, 0);
     sunLight2.castShadow = false;
     // sunLight2.target.position.set(0.0, 0.0, 0);
     group.add(sunLight2, sunLight2.target);
+
+    const helper1 = new THREE.PointLightHelper(sunLight1, 0.2);
+    const helper2 = new THREE.PointLightHelper(sunLight2, 0.2);
+    group.add(helper1, helper2);
+
+    // Load shrine model
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    const shrine = new THREE.Group();
+    shrine.position.set(0, -0.18, -0.6);
+    group.add(shrine);
+    /**
+     * This work is based on "Malevolent Shrine | Jujutsu Kaisen"
+     * (https://sketchfab.com/3d-models/malevolent-shrine-jujutsu-kaisen-efcf94d9cf03434db7b0978144b500b6)
+     * by NexusB (https://sketchfab.com/NexusB) licensed under
+     * CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+     */
+    loader.load('./assets/shrine.glb', (gltf) => {
+        const shrineModel = gltf.scene;
+        shrineModel.scale.set(1.3, 1.3, 1.3);
+        shrine.add(shrineModel);
+    });
 
     // Moon body
     const moonGeo = new THREE.SphereGeometry(0.08, 32, 32);
@@ -403,7 +425,6 @@ export function createDomain1() {
     const moon = new THREE.Mesh(moonGeo, moonMat);
     moon.position.set(0.0, 0.7, 0);
     group.add(moon);
-
     // Rim glow - slightly larger sphere rendered from inside
     // w/ fresnel shader that's bright at edges, dark in center
     const rimGeo = new THREE.SphereGeometry(0.085, 32, 32);
@@ -456,7 +477,7 @@ export function createDomain1() {
     spawnBonePiles(group, ground, 50);
 
     // Export Moon and RimMesh to control fresnel + intensity via main.js lil-gui
-    group.userData = { id: 'domain1', name: 'Malevolent Shrine' };
+    group.userData = { id: 'domain1', name: 'Malevolent Shrine', helper1: helper1, helper2: helper2 };
     return group;
 }
 
@@ -631,10 +652,13 @@ export function createDomain2() {
     warpTerrain(ground); // We warp via CPU to use Raycaster to spawn points randomly
     group.add(ground);
 
-    const sun = new THREE.DirectionalLight(0x00ff88, 5.0);
-    sun.position.set(0, 0.5, 0);
-    sun.castShadow = false;
-    group.add(sun);
+    const sunLight = new THREE.DirectionalLight(0x00ff88, 5.0);
+    sunLight.position.set(0, 0.5, 0);
+    sunLight.castShadow = false;
+    group.add(sunLight);
+
+    const helper = new THREE.DirectionalLightHelper(sunLight, 0.2);
+    group.add(helper);
 
     const crossGroup = new THREE.Group();
     group.add(crossGroup);
@@ -642,7 +666,7 @@ export function createDomain2() {
     spawnCrosses(crossGroup, ground, 25)
     spawnSwords(group, ground, crossGroup, 150);
 
-    group.userData = { id: 'domain2', name: 'Mutual Authentic Love' };
+    group.userData = { id: 'domain2', name: 'Mutual Authentic Love', helper: helper };
     return group;
 }
 
@@ -693,7 +717,7 @@ export function createDomain3() {
     const mesh = new THREE.Mesh(baseGeometry, material);
     group.add(mesh);
 
-    const coreLight = new THREE.PointLight(0xffdd55, 3.0, 0, 0);
+    const coreLight = new THREE.PointLight(0xffdd55, 3.0, 1, 2);
     group.add(coreLight);
     coreLight.position.set(0.0, 0.2, 0.7);
 
