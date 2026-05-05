@@ -1,0 +1,437 @@
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+import {spawnBonePiles, warpTerrain, spawnSwords, spawnCrosses, generateBuildings} from './procedural.js';
+// GLSL lives in ../shaders/*.js (this file is under src/js/, shaders/ is a sibling folder).
+import { vertexShader as domain1SkyVertex, fragmentShader as domain1SkyFragment } from '../shaders/domain1Sky.js';
+import { vertexShader as moonRimVertex, fragmentShader as moonRimFragment } from '../shaders/moonRim.js';
+import { vertexShader as domain2SkyVertex, fragmentShader as domain2SkyFragment } from '../shaders/domain2AuroraSky.js';
+import { injectCommon as waterInjectCommon, injectBeginVertex as waterInjectBeginVertex, injectBeginNormal as waterInjectBeginNormal } from '../shaders/domain1WaterPatches.js';
+
+// Single sphere geometry for the "Sky" (use .clone())
+const baseGeometry = new THREE.SphereGeometry(1, 64, 64);
+// Shared ground geometry (use .clone())
+const groundGeometry = createGridCircleGeometry(0.98, 64);
+
+// Domain 3 road sphere — shared shell material (single texture on GPU)
+const texLoader = new THREE.TextureLoader();
+const roadTex = texLoader.load('assets/road-texture.png');
+roadTex.wrapS = THREE.RepeatWrapping;
+roadTex.wrapT = THREE.RepeatWrapping;
+roadTex.repeat.set(20, 20);
+const roadShellMaterial = new THREE.MeshBasicMaterial({
+    //color: 0x828282, // beige
+    side: THREE.BackSide,
+    transparent: true,
+    opacity: 1.0,
+    depthWrite: false,
+    map: roadTex,
+});
+
+// Shader constants to animate
+export const globalUniforms = {
+    u_time: { value: 0.0 },
+    u_color: { value: new THREE.Color(0xffaaaa) },
+    u_power: { value: 2.0 },  // higher = tighter rim
+    u_intensity: { value: 2.0 }
+};
+
+// Problem w/ just a Circle Geo: it draws triangles from a single center vertex
+// To fix, we need to create a square grid geo w/ multiple vertices.
+function createGridCircleGeometry(radius, segments) {
+    // Create square
+    const size = radius * 2;
+    const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
+    // To create square grid
+    const pos = geometry.attributes.position; // manually add position points to create grid
+
+    // Loop through every vertex on the square
+    for (let i = 0; i < pos.count; i++) {
+        let x = pos.getX(i);
+        let y = pos.getY(i);
+
+        // Measure how far vertex is from center (0,0)
+        let distance = Math.sqrt(x * x + y * y);
+        // If vertex is outside desired radius, squish it inward
+        if (distance > radius) {
+            x = (x / distance) * radius;
+            y = (y / distance) * radius;
+            pos.setXY(i, x, y);
+        }
+    }
+
+    // Recompute vertex normals on the geometry w/ new position points set
+    geometry.computeVertexNormals();
+    return geometry;
+}
+
+function addLightGroundSky(group, color) {
+    const ambient = new THREE.AmbientLight(color, 0.4);
+    group.add(ambient);
+
+    // Set distance to 0 for infinite range.
+    // Set decay to 0 to stop physics engine from killing light when room scales
+    // distance/decay overridden each frame in applyDomainScales from shell scale; defaults avoid infinite reach.
+    const sun = new THREE.PointLight(color, 5.0, 1, 2);
+    sun.position.set(0, 0.5, 0);
+    sun.castShadow = false;
+    group.add(sun);
+
+    const groundMat = new THREE.MeshStandardMaterial({
+        color: color,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        metalness: 0.1,
+        roughness: 0.8
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMat);
+    ground.rotation.x = -Math.PI / 2; // lay flat
+    ground.position.y = -0.2; // slightly below center
+    group.add(ground);
+
+    return ground;
+}
+
+// ==========================================
+// DOMAIN 1: MALEVOLENT SHRINE
+// ==========================================
+export function createDomain1() {
+    const group = new THREE.Group();
+
+    // Domain Shell/Surface/Sky + Shader
+    const skyMat = new THREE.ShaderMaterial({
+        uniforms: {
+            u_time: globalUniforms.u_time,
+            u_local_opacity: { value: 1.0 } // allows main.js to fade the shader
+        },
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        vertexShader: domain1SkyVertex,
+        fragmentShader: domain1SkyFragment
+    });
+    const sky = new THREE.Mesh(baseGeometry, skyMat)
+    sky.name = "Sky";
+
+    group.add(sky);
+
+    const ambient = new THREE.AmbientLight(0xffaaaa, 0.3);
+    group.add(ambient);
+
+    // Water reflective shader material
+    const waterMat = new THREE.MeshStandardMaterial({
+        color: 0xff2222, // bright red
+        metalness: 0.9,  // super shiny
+        roughness: 0.0,  // very smooth for sharp reflections
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+
+    // for compilation optimization
+    waterMat.customProgramCacheKey = function() { return 'water_shader'; };
+
+    // Hijack shader to add ripples to the original three.js prebuilt shader on water material
+    // this prevents me from needing to write my own custom reflection shader.
+    // basically adding a shader in between the prebuilt three js shader that exists w/in every object material
+    // im adding the vertex deformation shader ON TOP of the existing fragment shader
+    // (vertex chunk text is in ../shaders/domain1WaterPatches.js — keeps domains.js as wiring / comments only)
+    waterMat.onBeforeCompile = (shader) => {
+        shader.uniforms.u_time = globalUniforms.u_time;
+
+        // safely inject after the #version and common chunks
+        shader.vertexShader = shader.vertexShader.replace(
+            `#include <common>`,
+            waterInjectCommon
+        );
+
+        shader.vertexShader = shader.vertexShader.replace(
+            `#include <begin_vertex>`,
+            waterInjectBeginVertex
+        );
+
+        shader.vertexShader = shader.vertexShader.replace(
+            `#include <beginnormal_vertex>`,
+            waterInjectBeginNormal
+        );
+    };
+
+    const ground = new THREE.Mesh(groundGeometry, waterMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.2;
+    group.add(ground);
+
+    const sunLight1 = new THREE.PointLight(0xaa55ff, 3.0, 0, 0);
+    sunLight1.position.set(0.5, 0.5, 0);
+    sunLight1.castShadow = false
+    // sunLight1.target.position.set(0.0, 0.0, 0);
+    group.add(sunLight1, sunLight1.target);
+
+    const sunLight2 = new THREE.PointLight(0xff27aa, 3.0, 1, 2);
+    sunLight2.position.set(-0.5, 0.5, 0);
+    sunLight2.castShadow = false;
+    // sunLight2.target.position.set(0.0, 0.0, 0);
+    group.add(sunLight2, sunLight2.target);
+
+    // const helper1 = new THREE.PointLightHelper(sunLight1, 0.2);
+    // const helper2 = new THREE.PointLightHelper(sunLight2, 0.2);
+    // helper1.userData.isLightHelperGizmo = true;
+    // helper2.userData.isLightHelperGizmo = true;
+    // group.add(helper1, helper2);
+
+    // Load shrine model
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    const shrine = new THREE.Group();
+    shrine.position.set(0, -0.18, -0.6);
+    group.add(shrine);
+    /**
+     * This work is based on "Malevolent Shrine | Jujutsu Kaisen"
+     * (https://sketchfab.com/3d-models/malevolent-shrine-jujutsu-kaisen-efcf94d9cf03434db7b0978144b500b6)
+     * by NexusB (https://sketchfab.com/NexusB) licensed under
+     * CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+     */
+    loader.load('./assets/shrine.glb', (gltf) => {
+        const shrineModel = gltf.scene;
+        shrineModel.scale.set(1.3, 1.3, 1.3);
+        shrine.add(shrineModel);
+    });
+
+    // Moon body
+    const moonGeo = new THREE.SphereGeometry(0.08, 32, 32);
+    const moonMat = new THREE.MeshStandardMaterial({
+        color: 0x000000,
+        roughness: 0.8,
+        metalness: 0.1,
+        emissive: 0x000000,
+    });
+    const moon = new THREE.Mesh(moonGeo, moonMat);
+    moon.position.set(0.0, 0.7, 0);
+    group.add(moon);
+    // Rim glow - slightly larger sphere rendered from inside
+    // w/ fresnel shader that's bright at edges, dark in center
+    const rimGeo = new THREE.SphereGeometry(0.085, 32, 32);
+    const rimMat = new THREE.ShaderMaterial({
+        uniforms: {
+            u_color: globalUniforms.u_color,
+            u_power: globalUniforms.u_power, // higher = tighter rim
+            u_intensity: globalUniforms.u_intensity
+        },
+        side: THREE.BackSide, // render inside of sphere = rim appears around outside
+        transparent: true,
+        depthWrite: false,
+        vertexShader: moonRimVertex,
+        fragmentShader: moonRimFragment
+    });
+    const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+    rimMesh.position.copy(moon.position);
+    group.add(rimMesh);
+
+    // Procedural
+    spawnBonePiles(group, ground, 50);
+
+    // Export Moon and RimMesh to control fresnel + intensity via main.js lil-gui
+    // group.userData = { id: 'domain1', name: 'Malevolent Shrine', helper1: helper1, helper2: helper2 };
+    group.userData = { id: 'domain1', name: 'Malevolent Shrine' };
+    return group;
+}
+
+// ==========================================
+// DOMAIN 2: MUTUAL AUTHENTIC LOVE
+// ==========================================
+export function createDomain2() {
+    const group = new THREE.Group();
+
+    // Green Sky Shader
+    const skyMat = new THREE.ShaderMaterial({
+        uniforms: {
+            u_time: globalUniforms.u_time,
+            u_local_opacity: { value: 1.0 }
+        },
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        vertexShader: domain2SkyVertex,
+        fragmentShader: domain2SkyFragment
+    });
+    const sky = new THREE.Mesh(baseGeometry, skyMat)
+    sky.name = "Sky";
+
+    group.add(sky);
+
+    // Ground and Lights
+    const rockyGeo = groundGeometry.clone();
+    const rockMat = new THREE.MeshStandardMaterial({
+        color: 0x334433, roughness: 0.9, transparent: true, depthWrite: false, side: THREE.DoubleSide
+    });
+    const ground = new THREE.Mesh(rockyGeo, rockMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.2;
+    ground.receiveShadow = false;
+    warpTerrain(ground); // We warp via CPU to use Raycaster to spawn points randomly
+    group.add(ground);
+
+    const sunLight = new THREE.DirectionalLight(0x00ff88, 1.85);
+    sunLight.position.set(0, 0.5, 0);
+    sunLight.castShadow = false;
+    group.add(sunLight);
+
+    // const helper = new THREE.DirectionalLightHelper(sunLight, 0.2);
+    // helper.userData.isLightHelperGizmo = true;
+    // group.add(helper);
+
+    const crossGroup = new THREE.Group();
+    group.add(crossGroup);
+    // Procedural
+    spawnCrosses(crossGroup, ground, 25)
+    spawnSwords(group, ground, crossGroup, 150);
+
+    // group.userData = { id: 'domain2', name: 'Mutual Authentic Love', helper: helper };
+    group.userData = { id: 'domain2', name: 'Mutual Authentic Love' };
+    return group;
+}
+
+// TODO: Sidhant
+// ==========================================
+// DOMAIN 3:
+// ==========================================
+export function createDomain3() {
+
+    const material = roadShellMaterial;
+
+    // material.onBeforeCompile = (shader) => {
+    //     shader.uniforms.uFogColor = { value: new THREE.Color(0xffdd88) };
+    //     shader.uniforms.uFogNear = { value: 0.2 };
+    //     shader.uniforms.uFogFar = { value: 1.2 };
+    //
+    //     shader.fragmentShader = shader.fragmentShader.replace(
+    //         `#include <dithering_fragment>`,
+    //         `
+    //         // distance from camera
+    //         float depth = gl_FragCoord.z / gl_FragCoord.w;
+    //
+    //         float fogFactor = smoothstep(uFogNear, uFogFar, depth);
+    //
+    //         gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogFactor);
+    //
+    //         #include <dithering_fragment>
+    //         `
+    //     );
+    // };
+
+    const group = new THREE.Group();
+    const mesh = new THREE.Mesh(baseGeometry, material);
+    group.add(mesh);
+
+    // Warm fill for the city shell — this has always been a PointLight (not a SpotLight); sits near +Z in local space.
+    // In play mode main.js scales the whole domain and applies distance/decay each frame, so it can look dimmer than dev
+    // (dev inflates intensities in applyDevMode with 5 * roomScale² for the one room you edit).
+    const coreLight = new THREE.PointLight(0xffdd55, 4.0, 1, 2);
+    group.add(coreLight);
+    coreLight.position.set(0.0, 0.2, 0.7);
+
+
+    // const glowGeo = new THREE.SphereGeometry(0.2, 16, 16);
+    // const glowMat = new THREE.MeshStandardMaterial({
+    //     color: 0xffe88c,
+    //     emissive: 0xffff00,
+    //     emissiveIntensity: 2,
+    // });
+    // const glow = new THREE.Mesh(glowGeo, glowMat);
+    //
+    // glow.position.copy(coreLight.position);
+    // group.add(glow);
+    //
+    // const haloGeo = new THREE.SphereGeometry(0.35, 32, 32);
+    // const haloMat = new THREE.MeshBasicMaterial({
+    //     color: 0xffdd55,
+    //     transparent: true,
+    //     opacity: 0.15,
+    //     depthWrite: false
+    // });
+    //
+    // const halo = new THREE.Mesh(haloGeo, haloMat);
+    // halo.position.copy(coreLight.position);
+    // group.add(halo);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    group.add(ambient);
+
+
+    //addLightGroundSky(group, 0x00ff00);
+
+    generateBuildings(group, 400);
+    //const building = createBuildingTest();
+    //group.add(building);
+
+
+    group.userData = { id: 'domain3', name: 'Hurtbreak Wonderland' };
+    return group;
+}
+
+function createBuildingTest() {
+
+    const group = new THREE.Group();
+    const height = 0.2;
+    const width = 0.1;
+    const length = 0.1;
+
+    const texLoader = new THREE.TextureLoader();
+    const buildingTex = texLoader.load('assets/building-texture.png');
+
+    const geo = new THREE.BoxGeometry( length, height, width );
+    //const mat = new THREE.MeshStandardMaterial( { color: 0xc09156 } );
+    const mat = new THREE.MeshStandardMaterial( { map: buildingTex } );
+    const building = new THREE.Mesh( geo, mat );
+    building.position.y = height / 2;
+
+    group.add(building);
+
+    group.add(createRoofForBuildingTest(width, height, texLoader));
+
+
+    return group;
+} // createBuilding
+
+function createRoofForBuildingTest(width, height, texLoader) {
+    const roofMats = [
+        new THREE.MeshStandardMaterial({ map: texLoader.load('assets/roof-texture.png') }),
+        new THREE.MeshStandardMaterial({ map: texLoader.load('assets/building-no-window-texture.png') }),
+        new THREE.MeshStandardMaterial({ map: texLoader.load('assets/building-no-window-texture.png') }),
+    ];
+    const roofHeight = width / 2;
+    const geo2 = new THREE.CylinderGeometry( roofHeight, roofHeight, width, 3 );
+    const roof = new THREE.Mesh( geo2, roofMats );
+    roof.rotation.x = -Math.PI / 2;
+
+    const random = Math.random();
+    if (random < 0.5) roof.rotation.y = Math.PI / 2;
+
+    roof.position.y = height + (roofHeight / 2);
+
+    return roof;
+}
+
+// TODO: Sidhant
+// ==========================================
+// DOMAIN 4:
+// ==========================================
+export function createDomain4() {
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xcccccc, // silver
+        side: THREE.BackSide,
+        transparent: true,
+        opacity: 1.0,
+        depthWrite: false,
+    });
+    const group = new THREE.Group();
+    const mesh = new THREE.Mesh(baseGeometry, material);
+    group.add(mesh);
+
+    addLightGroundSky(group, 0xcccccc);
+
+    group.userData = { id: 'domain4', name: 'Domain 4' };
+    return group;
+}
