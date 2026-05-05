@@ -13,6 +13,7 @@ import {
 // GLSL lives in ../shaders/*.js (this file is under src/js/, shaders/ is a sibling folder).
 import { vertexShader as domain1SkyVertex, fragmentShader as domain1SkyFragment } from '../shaders/domain1Sky.js';
 import { vertexShader as moonRimVertex, fragmentShader as moonRimFragment } from '../shaders/moonRim.js';
+import { vertexShader as domain3CloudVertex, fragmentShader as domain3CloudFragment } from '../shaders/domain3Cloud.js';
 import { vertexShader as domain2SkyVertex, fragmentShader as domain2SkyFragment } from '../shaders/domain2AuroraSky.js';
 import { injectCommon as waterInjectCommon, injectBeginVertex as waterInjectBeginVertex, injectBeginNormal as waterInjectBeginNormal } from '../shaders/domain1WaterPatches.js';
 
@@ -347,6 +348,22 @@ export function createDomain3() {
     const mesh = new THREE.Mesh(baseGeometry, material);
     group.add(mesh);
 
+    const fogGeo2 = new THREE.SphereGeometry(1, 48, 48);
+    const fogMat2 = new THREE.ShaderMaterial({
+        uniforms: {
+            u_time: globalUniforms.u_time,
+            u_local_opacity: { value: 1.0 } // allows main.js to fade the shader
+        },
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        vertexShader: domain3CloudVertex,
+        fragmentShader: domain3CloudFragment,
+    });
+    const fog4 = new THREE.Mesh(fogGeo2, fogMat2);
+    group.add(fog4);
+
+
     const coreLight = new THREE.PointLight(0xffdd55, 50.0, 1, 2);
     group.add(coreLight);
     coreLight.position.set(0.0, 0.2, -0.9);
@@ -472,6 +489,13 @@ export function createDomain3() {
     // fog2.material.uniforms.u_time = globalUniforms.u_time;
     // group.add(fog2);
 
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.1,
+        fog: true
+    });
+    group.add(mat);
 
 
 
