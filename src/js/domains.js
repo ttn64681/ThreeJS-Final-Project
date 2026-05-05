@@ -347,20 +347,20 @@ export function createDomain3() {
     const mesh = new THREE.Mesh(baseGeometry, material);
     group.add(mesh);
 
-    const fogGeo2 = new THREE.SphereGeometry(1, 48, 48);
-    const fogMat2 = new THREE.ShaderMaterial({
-        uniforms: {
-            u_time: globalUniforms.u_time,
-            u_local_opacity: { value: 1.0 } // allows main.js to fade the shader
-        },
-        side: THREE.BackSide,
-        transparent: true,
-        depthWrite: false,
-        vertexShader: domain3CloudVertex,
-        fragmentShader: domain3CloudFragment,
-    });
-    const fog4 = new THREE.Mesh(fogGeo2, fogMat2);
-    group.add(fog4);
+    // const fogGeo2 = new THREE.SphereGeometry(1, 48, 48);
+    // const fogMat2 = new THREE.ShaderMaterial({
+    //     uniforms: {
+    //         u_time: globalUniforms.u_time,
+    //         u_local_opacity: { value: 1.0 } // allows main.js to fade the shader
+    //     },
+    //     side: THREE.BackSide,
+    //     transparent: true,
+    //     depthWrite: false,
+    //     vertexShader: domain3CloudVertex,
+    //     fragmentShader: domain3CloudFragment,
+    // });
+    // const fog4 = new THREE.Mesh(fogGeo2, fogMat2);
+    // group.add(fog4);
 
 
     const coreLight = new THREE.PointLight(0xffdd55, 50.0, 1, 2);
@@ -561,7 +561,7 @@ function createRoofForBuildingTest(width, height, texLoader) {
 // ==========================================
 export function createDomain4() {
     const material = new THREE.MeshStandardMaterial({
-        color: 0xcccccc, // silver
+        color: 0x8cd1ff, // silver
         side: THREE.BackSide,
         transparent: true,
         opacity: 1.0,
@@ -573,9 +573,16 @@ export function createDomain4() {
 
     const doorGroup = new THREE.Group();
     generateDoors(doorGroup);
-    doorGroup.position.y = 0.6;
-    doorGroup.rotation.x = Math.PI;
+    doorGroup.position.y = 0.5;
+    //doorGroup.rotation.x = Math.PI;
     group.add(doorGroup);
+
+    const light = new THREE.PointLight(0xffffff, 3.0, 1, 2);
+    light.position.y = 0.1;
+    group.add(light);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    group.add(ambient);
 
     // Ground and Lights
     const rockyGeo = groundGeometry.clone();

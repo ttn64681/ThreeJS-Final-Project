@@ -824,15 +824,19 @@ export function createDoor(width, length) {
     const minWindowW = maxWindowW * 0.3;
     const minWindowL = maxWindowL * 0.2;
 
-    const windowS = 0.02 + Math.random() * ((width - 0.08) - 0.02);
     const windowW = minWindowW + Math.random() * (maxWindowW - minWindowW);
     const windowL = minWindowL + Math.random() * (maxWindowL - minWindowL);
+
+    const maxRadius = Math.min(maxWindowW, maxWindowL) / 2;
+    const minRadius = maxRadius * 0.4;
+    const windowS = minRadius + Math.random() * (maxRadius - minRadius);
     let geo3;
     if (Math.random() < 0.5) {
         geo3 = new THREE.BoxGeometry(windowW, 0.001, windowL);
     } else {
         let windowSegments = [6, 8, 32];
-        geo3 = new THREE.CylinderGeometry( windowS, windowS, 0.002, windowSegments[Math.floor(Math.random() * windowSegments.length)]);
+        geo3 = new THREE.CylinderGeometry(windowS, windowS, 0.002, windowSegments[Math.floor(Math.random() * windowSegments.length)]);
+        //geo3.rotateX(Math.PI / 2);
     }
     const mat3 = new THREE.MeshPhysicalMaterial({
         color: 0x88ccee,
@@ -850,21 +854,6 @@ export function createDoor(width, length) {
     //window.position.z = -(length / 2) + 0.03;
     door.add(window);
 
-    // const frameThickness = 0.002;
-    //
-    // const frameGeo = new THREE.BoxGeometry(
-    //     windowW + frameThickness,
-    //     0.002,
-    //     windowL + frameThickness
-    // );
-    //
-    // const frameMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-    // const frame = new THREE.Mesh(frameGeo, frameMat);
-    //
-    // frame.position.copy(window.position);
-    // frame.position.y -= 0.0005;
-    //
-    // door.add(frame);
 
     return door;
 
@@ -872,7 +861,7 @@ export function createDoor(width, length) {
 }
 
 export function generateDoors(group) {
-    const rows = 10;
+    const rows = 19;
     const cols = 36;
 
     const spacingX = 0.04;
