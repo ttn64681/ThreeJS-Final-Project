@@ -1,4 +1,4 @@
-// Domain 1 sky dome (Malevolent Shrine). Imported by src/js/domains.js createDomain1.
+// Domain 1 sky dome (Malevolent Shrine). Imported by code/js/domains.js createDomain1.
 export const vertexShader = `
             varying vec2 vUv;
             varying vec3 vPos;

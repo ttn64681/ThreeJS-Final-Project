@@ -220,7 +220,7 @@ function setupGUI() {
     // devFolder.add(state, 'showLightHelpers').name('Show light helpers');
 
     // Domain 1: Moon Controls
-    const moonFolder = gui.addFolder('Moon & Sky');
+    const moonFolder = gui.addFolder('Domain 1:Moon');
     moonFolder; // hidden until dev mode activates Domain 1
     const colorProxy = { rimColor: globalUniforms.u_color.value.getHex() };
     moonFolder.addColor(colorProxy, 'rimColor').name('Rim Color').onChange(v => {
@@ -324,7 +324,7 @@ function setMode(mode, dir, btnElement) {
     }
 }
 
-// Walk parents and checks if they are a light helper gizmo
+// Walk parents; true if any ancestor is a light-helper gizmo
 function isUnderLightHelperGizmo(obj) {
     let p = obj.parent;
     while (p) { // walk up; helper gizmo roots tagged in domains
@@ -335,7 +335,7 @@ function isUnderLightHelperGizmo(obj) {
 }
 
 // For each material in the mesh, apply the function
-// (For applying opacity/depth per mesh inG LTF / multi-material meshes, which use material[])
+// (GLTF multi-material: material[])
 function forEachMaterial(mesh, fn) {
     const m = mesh.material; // single mat or [] (GLTF)
     if (Array.isArray(m)) m.forEach(fn);
