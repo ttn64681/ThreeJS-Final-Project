@@ -58,6 +58,20 @@ const bullSkullMat = new THREE.MeshStandardMaterial({
 });
 const darkMat = new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 1.0 });
 
+// Shared bull skull building blocks (avoids allocating SphereGeometry / TubeGeometry per spawn)
+const bullCraniumGeo = new THREE.SphereGeometry(0.09, 10, 8);
+bullCraniumGeo.scale(1.3, 0.7, 1.0);
+const bullSnoutGeo = new THREE.BoxGeometry(0.08, 0.055, 0.12);
+const bullHornCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.09, 0.02, 0),
+    new THREE.Vector3(0.14, 0.06, -0.02),
+    new THREE.Vector3(0.17, 0.10, -0.01),
+    new THREE.Vector3(0.16, 0.14, 0.02),
+]);
+const bullHornTubeGeo = new THREE.TubeGeometry(bullHornCurve, 12, 0.012, 7, false);
+const bullSocketGeo = new THREE.SphereGeometry(0.022, 8, 8);
+const bullNostrilGeo = new THREE.SphereGeometry(0.012, 6, 6);
+
 // =====================================
 // =============== BONE ================
 // =====================================
@@ -142,12 +156,16 @@ export function createSkull() {
     const group = new THREE.Group();
     group.add(skullCranium.clone());
     group.add(skullJaw.clone());
-    [-0.025, 0.025].forEach(xOffset => {
-        const skull = skullNose.clone()
-        skull.position.set(xOffset, 0.07, 0.0);
-        group.add(skull);
+    // Eye sockets — two recessed spheres (left / right on the cranium)
+    [-0.018, 0.018].forEach((xOffset) => {
+        const eye = skullSocket.clone();
+        eye.position.set(xOffset, 0.062, 0.034);
+        group.add(eye);
     });
-    group.add(skullNose.clone());
+    // Nasal cavity — single center sphere (forward on snout)
+    const nose = skullNose.clone();
+    nose.position.set(0, 0.045, 0.055);
+    group.add(nose);
     for (let i = -2; i <= 2; i++) {
         const tooth = skullTooth.clone()
         tooth.position.set(i * 0.011, 0.01, 0.03 + Math.abs(i) * -0.003);
@@ -163,40 +181,26 @@ export function createSkull() {
 export function createBullSkull() {
     const group = new THREE.Group();
 
-    // Wide flat cranium
-    const craniumGeo = new THREE.SphereGeometry(0.09, 10, 8);
-    craniumGeo.scale(1.3, 0.7, 1.0);
-    const bullSkull = new THREE.Mesh(craniumGeo, bullSkullMat)
-    group.add(bullSkull);
+    group.add(new THREE.Mesh(bullCraniumGeo, bullSkullMat));
 
-    // Snout - elongated box
-    const bullSnoutGeo = new THREE.BoxGeometry(0.08, 0.055, 0.12);
     const bullSnout = new THREE.Mesh(bullSnoutGeo, bullSkullMat);
     bullSnout.position.set(0, -0.025, 0.1);
     group.add(bullSnout);
 
-    // Horns - curved using TubeGeometry along a CatmullRomCurve3
-    [-1, 1].forEach(side => {
-        const hornCurve = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(side * 0.09, 0.02, 0),
-            new THREE.Vector3(side * 0.14, 0.06, -0.02),
-            new THREE.Vector3(side * 0.17, 0.10, -0.01),
-            new THREE.Vector3(side * 0.16, 0.14, 0.02),
-        ]);
-        const hornGeo = new THREE.TubeGeometry(hornCurve, 12, 0.012, 7, false);
-        group.add(new THREE.Mesh(hornGeo, bullSkullMat));
-    });
+    const hornR = new THREE.Mesh(bullHornTubeGeo, bullSkullMat);
+    group.add(hornR);
+    const hornL = new THREE.Mesh(bullHornTubeGeo, bullSkullMat);
+    hornL.scale.x = -1;
+    group.add(hornL);
 
-    // Eye sockets
     [-0.038, 0.038].forEach(x => {
-        const bullSocket = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), darkMat);
+        const bullSocket = new THREE.Mesh(bullSocketGeo, darkMat);
         bullSocket.position.set(x, 0.015, 0.055);
         group.add(bullSocket);
     });
 
-    // Nostril holes
     [-0.02, 0.02].forEach(x => {
-        const nostril = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), darkMat);
+        const nostril = new THREE.Mesh(bullNostrilGeo, darkMat);
         nostril.position.set(x, -0.025, 0.155);
         group.add(nostril);
     });
@@ -521,22 +525,25 @@ function createCross() {
 } // createCross
 
 // ===================== Domain 3 =====================
-// One loader + GPU textures/materials for all procedural city geometry (was N copies per building / park).
 
-const domain3TexLoader = new THREE.TextureLoader();
-const domain3GrassTex = domain3TexLoader.load('assets/grass-texture.png');
-const domain3SidewalkTex = domain3TexLoader.load('assets/sidewalk-texture.png');
-const domain3BuildingFacadeTex = domain3TexLoader.load('assets/building-texture-sat.png');
-const domain3RoofTex = domain3TexLoader.load('assets/roof-texture.png');
+// =====================================
+// ============= Constants =============
+// =====================================
 
-const domain3GrassMat = new THREE.MeshStandardMaterial({
+const texLoader = new THREE.TextureLoader();
+const grassTex = texLoader.load('assets/grass-texture.png');
+const sidewalkTex = texLoader.load('assets/sidewalk-texture.png');
+const buildingFacadeTex = texLoader.load('assets/building-texture-sat.png');
+const roofTex = texLoader.load('assets/roof-texture.png');
+
+const grassMat = new THREE.MeshStandardMaterial({
     side: THREE.DoubleSide,
-    map: domain3GrassTex,
+    map: grassTex,
 });
-const domain3SidewalkMat = new THREE.MeshBasicMaterial({ map: domain3SidewalkTex });
-const domain3BuildingBaseMat = new THREE.MeshStandardMaterial({ map: domain3BuildingFacadeTex });
-const domain3RoofMat = new THREE.MeshStandardMaterial({
-    map: domain3RoofTex,
+const sidewalkMat = new THREE.MeshBasicMaterial({ map: sidewalkTex });
+const buildingBaseMat = new THREE.MeshStandardMaterial({ map: buildingFacadeTex });
+const roofMat = new THREE.MeshStandardMaterial({
+    map: roofTex,
     roughness: 0.9,
     metalness: 0.0,
 });
@@ -559,7 +566,7 @@ function createGrass(width, length) {
     const park = new THREE.Group();
 
     const geo = new THREE.BoxGeometry(length, 0.03, width)
-    const grass = new THREE.Mesh(geo, domain3GrassMat);
+    const grass = new THREE.Mesh(geo, grassMat);
 
     grass.lookAt(0, 0, 0);
 
@@ -582,7 +589,7 @@ function createGrass(width, length) {
 function createSidewalk(width, length) {
 
     const geo = new THREE.BoxGeometry(length + 0.03, 0.005, width + 0.03);
-    const sidewalk = new THREE.Mesh(geo, domain3SidewalkMat);
+    const sidewalk = new THREE.Mesh(geo, sidewalkMat);
     sidewalk.position.y = 0.01; // slightly above ground
     return sidewalk;
 }
@@ -596,7 +603,7 @@ function createBuilding(width, length) {
 
 
     const geo = new THREE.BoxGeometry(length, height, width);
-    const base = new THREE.Mesh(geo, domain3BuildingBaseMat);
+    const base = new THREE.Mesh(geo, buildingBaseMat);
     base.position.y = height / 2;
     building.add(base);
 
@@ -719,7 +726,7 @@ function createBuilding(width, length) {
         geo2.computeVertexNormals();
     }
 
-    const roof = new THREE.Mesh(geo2, domain3RoofMat);
+    const roof = new THREE.Mesh(geo2, roofMat);
     roof.position.y = height;
     building.add(roof);
 
