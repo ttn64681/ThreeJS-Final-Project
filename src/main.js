@@ -20,7 +20,7 @@ let state = {
     speed: 0.05,
     zoomProgress: 0.0,
     progressController: null,
-    baseScaleFactor: 25,
+    baseScaleFactor: 20,
     activeDevDomain: 'domain1',
     targetDevScale: 0.5,
     isPaused: true,
@@ -42,7 +42,7 @@ const introCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const introGeo = new THREE.PlaneGeometry(2, 2);
 const introMat = new THREE.ShaderMaterial({
     uniforms: {
-        u_progress: { value: 0.0 }, // drives the warp/explosion
+        u_progress: { value: 0.0 }, // drives warp
         u_time: { value: 0.0 }
     },
     transparent: true,
@@ -52,27 +52,39 @@ const introMat = new THREE.ShaderMaterial({
         void main() { vUv = uv; gl_Position = vec4(position, 1.0); }
     `,
     fragmentShader: `
-        uniform float u_progress; // 0=start, 1=fully zoomed in/done
+        uniform float u_progress; 
         uniform float u_time;
         varying vec2 vUv;
 
         void main() {
-            vec2 center = vUv - 0.5; // -0.5 to 0.5, centered
+            vec2 center = vUv - 0.5; 
             float dist = length(center);
 
-            // Warp: UV spirals/contracts toward center as progress increases
+            // 1. Spiky Explosion Core (creates a starburst shape instead of a perfect circle)
             float angle = atan(center.y, center.x);
-            float warp = dist * (1.0 - u_progress * 2.0); // shrinks to zero
+            float spikes = sin(angle * 20.0 + u_time * 20.0);
+            
+            // 2. The Shockwave Expansion
+            // The blast expands outward rapidly based on u_progress
+            float core = smoothstep(0.8 * u_progress * spikes, 0.0, dist + (spikes * 0.9));
 
-            // Ripple outward from center
-            float ring = sin(dist * 30.0 - u_time * 10.0) * 0.5 + 0.5;
+            // 3. Color Phase (White -> Bright Orange -> Deep Red)
+            vec3 flashWhite = vec3(1.0, 1.0, 1.0);
+            vec3 fireRed = vec3(1.0, 0.3, 0.0);
+            vec3 darkRed = vec3(0.4, 0.0, 0.0);
 
-            // Fade out as progress -> 1.0
-            float alpha = 1.0 - smoothstep(0.6, 1.0, u_progress);
+            // Transition from white to fire at 30% progress, then fire to dark red at 40%
+            vec3 colorMix = mix(flashWhite, fireRed, smoothstep(0.0, 0.4, u_progress));
+            colorMix = mix(colorMix, darkRed, smoothstep(0.35, 0.6, u_progress));
 
-            // Dark vortex color
-            vec3 color = mix(vec3(0.0), vec3(0.5, 0.0, 0.0), ring * (1.0 - u_progress));
-            gl_FragColor = vec4(color, alpha);
+            // 4. Combine and Fade Out
+            vec3 finalColor = colorMix * core;
+            
+            // Fade the entire effect to completely transparent as progress hits 1.0
+            float fadeOut = 1.0 - smoothstep(0.7, 1.0, u_progress);
+            float finalAlpha = core * fadeOut;
+
+            gl_FragColor = vec4(finalColor, finalAlpha);
         }
     `
 });
@@ -87,7 +99,7 @@ function init() {
     scene = new THREE.Scene();
 
     // Camera
-    camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.01, 1000);
+    camera = new THREE.PerspectiveCamera(100, window.innerWidth / window.innerHeight, 0.01, 1000);
     camera.position.set(0, 0, 8);
 
     // Renderer
@@ -204,7 +216,7 @@ function setupGUI() {
     moonFolder.add(globalUniforms.u_power, 'value', 0.5, 8).name('Rim Tightness');
     moonFolder.add(globalUniforms.u_intensity, 'value', 0.1, 5).name('Rim Intensity');
 
-    // Intro Reset
+    // Intro Reset Btn
     const introControls = {
         resetIntro: () => {
             introComplete = false;
@@ -376,7 +388,7 @@ function animate() {
         introProgress += delta;
 
         // Intro shader duration (15% of introDuration)
-        introShaderProgress = Math.min(introProgress / (introDuration * 0.15), 1.0);
+        introShaderProgress = Math.min(introProgress / (introDuration * 0.5), 1.0);
         introMat.uniforms.u_progress.value = introShaderProgress;
         introMat.uniforms.u_time.value += delta;
 

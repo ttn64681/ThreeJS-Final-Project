@@ -22,7 +22,7 @@ function createGridCircleGeometry(radius, segments) {
     const size = radius * 2;
     const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
     // To create square grid
-    const pos = geometry.attributes.position; // we manually add position points to create grid
+    const pos = geometry.attributes.position; // manually add position points to create grid
 
     // Loop through every vertex on the square
     for (let i = 0; i < pos.count; i++) {
