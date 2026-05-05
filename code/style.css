@@ -3,13 +3,18 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none;
 }
 
+#gui-container {
+    position: absolute; top: 12px; right: 12px; z-index: 20;
+    max-height: calc(100vh - 24px); overflow: auto;
+}
+
 #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
 
 /* UI Overlay */
 #ui-layer {
     position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
     display: flex; gap: 12px; z-index: 10;
-    background: rgba(15, 15, 15, 0.6); backdrop-filter: blur(10px);
+    background: rgba(15, 15, 15, 0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     padding: 12px 24px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
