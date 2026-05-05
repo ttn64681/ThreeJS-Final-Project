@@ -9,8 +9,12 @@ import {animateFloatingDebris} from './procedural.js';
 // ===================== Scene Variables =====================
 let scene, camera, renderer, controls;
 let domains = []; // i=0->1=3 : largest to smallest
-let domainMeshesCache = []; // Hold all our meshes. When traversing each mesh, we check if
+let domainMeshesCache = []; // Hold all currently viewable domain's meshes
 let gui;
+// Light Helpers
+let d1_helper1;
+let d1_helper2;
+let d2_helper;
 
 // Animation State
 let clock = new THREE.Clock();
@@ -19,12 +23,14 @@ let state = {
     direction: 1,
     speed: 0.05,
     zoomProgress: 0.0,
+    domainOrderStr: 'domain1 -> domain2 -> domain3 -> domain4',
     progressController: null,
-    baseScaleFactor: 20,
+    baseScaleFactor: 18,
     activeDevDomain: 'domain1',
     targetDevScale: 0.5,
     isPaused: true,
     shaderTime: 0.0,
+    showLightHelpers: false,
 };
 
 // Intro Animation State
@@ -60,27 +66,26 @@ const introMat = new THREE.ShaderMaterial({
             vec2 center = vUv - 0.5; 
             float dist = length(center);
 
-            // 1. Spiky Explosion Core (creates a starburst shape instead of a perfect circle)
+            // Spiky explosion
             float angle = atan(center.y, center.x);
             float spikes = sin(angle * 20.0 + u_time * 20.0);
             
-            // 2. The Shockwave Expansion
-            // The blast expands outward rapidly based on u_progress
+            // Expands outward rapidly
             float core = smoothstep(0.8 * u_progress * spikes, 0.0, dist + (spikes * 0.9));
 
-            // 3. Color Phase (White -> Bright Orange -> Deep Red)
-            vec3 flashWhite = vec3(1.0, 1.0, 1.0);
-            vec3 fireRed = vec3(1.0, 0.3, 0.0);
+            // Color phase (white -> red/orange -> dark red)
+            vec3 white = vec3(1.0, 1.0, 1.0);
+            vec3 red = vec3(1.0, 0.3, 0.0);
             vec3 darkRed = vec3(0.4, 0.0, 0.0);
 
-            // Transition from white to fire at 30% progress, then fire to dark red at 40%
-            vec3 colorMix = mix(flashWhite, fireRed, smoothstep(0.0, 0.4, u_progress));
+            // Transition from white to red at 30% progress, then red to dark red at 40%
+            vec3 colorMix = mix(white, red, smoothstep(0.0, 0.4, u_progress));
             colorMix = mix(colorMix, darkRed, smoothstep(0.35, 0.6, u_progress));
 
-            // 4. Combine and Fade Out
+            // Combine and Fade Out
             vec3 finalColor = colorMix * core;
             
-            // Fade the entire effect to completely transparent as progress hits 1.0
+            // Fade entire effect to completely transparent as progress hits 1.0
             float fadeOut = 1.0 - smoothstep(0.7, 1.0, u_progress);
             float finalAlpha = core * fadeOut;
 
@@ -89,7 +94,23 @@ const introMat = new THREE.ShaderMaterial({
     `
 });
 const introQuad = new THREE.Mesh(introGeo, introMat);
+introQuad.renderOrder = 2; // shader draws last
 introScene.add(introQuad);
+// gojo.png overlay
+const texLoader = new THREE.TextureLoader();
+const gojoTex = texLoader.load('./assets/gojo.png');
+const gojoMat = new THREE.MeshBasicMaterial({
+    map: gojoTex,
+    transparent: true,
+    opacity: 0.0, // start invisible
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+});
+const gojoGeo = new THREE.PlaneGeometry(1, 1); // flat plane for image
+const gojoMesh = new THREE.Mesh(gojoGeo, gojoMat);
+gojoMesh.renderOrder = 1; // draws before shader (underlayed)
+introScene.add(gojoMesh);
 
 // ===================== Init =====================
 function init() {
@@ -103,7 +124,6 @@ function init() {
     camera.position.set(0, 0, 8);
 
     // Renderer
-
     // renderer = new THREE.WebGLRenderer({ antialias: true });
     // renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer = new THREE.WebGLRenderer({
@@ -132,11 +152,24 @@ function init() {
     domains.forEach(domain => {
         scene.add(domain);
         // Build cache for each domain
-        const meshes = [];
+        // Split the cache into meshes and lights for clean looping
+        const cache = { meshes: [], lights: [] };
         domain.traverse(child => {
-            if (child.isMesh) meshes.push(child);
+            if (child.isMesh) cache.meshes.push(child);
+            if (child.isLight) {
+                cache.lights.push({
+                    light: child,
+                    baseIntensity: child.intensity // save original brightness
+                });
+            }
         });
-        domainMeshesCache.push(meshes);
+        domainMeshesCache.push(cache);
+        if (domain.userData.id === 'domain1') {
+            d1_helper1 = domain.userData.helper1;
+            d1_helper2 = domain.userData.helper2;
+        } else if (domain.userData.id === 'domain2') {
+            d2_helper = domain.userData.helper;
+        }
     });
 
     // ===================== GUI =====================
@@ -166,9 +199,6 @@ function createObjects() {
     domains.push(createDomain2());
     domains.push(createDomain3());
     domains.push(createDomain4());
-
-    // Add them to scene
-    domains.forEach(domain => scene.add(domain));
 }
 
 // ===================== GUI Setup =====================
@@ -179,6 +209,7 @@ function setupGUI() {
 
     // Animation Controls
     const engineFolder = gui.addFolder('Animation Engine');
+    engineFolder.add(state, 'domainOrderStr').name('Current Order').listen().disable();
     state.progressDisplay = engineFolder.add(state, 'zoomProgress').name('Zoom Progress: ').decimals(4).disable();
     engineFolder.add(state, 'speed', 0.01, 1.5).name('Zoom Speed');
     engineFolder.add(state, 'baseScaleFactor', 2, 50).name('Scale Factor').onChange(() => {
@@ -204,6 +235,7 @@ function setupGUI() {
             })
         };
     });
+    devFolder.add(state, 'showLightHelpers').name('Show light helpers');
 
     // Domain 1: Moon Controls
     const moonFolder = gui.addFolder('Moon & Sky');
@@ -244,6 +276,7 @@ function setupButtons() {
 }
 
 function setMode(mode, dir, btnElement) {
+    const prevMode = state.mode;
     state.mode = mode;
     if (dir !== 0) state.direction = dir;
 
@@ -267,11 +300,20 @@ function setMode(mode, dir, btnElement) {
     } else {
         controls.enablePan = false;
         controls.enableZoom = false;
-        if (introComplete) {
-            camera.position.z = 1;
+        // Only snap the orbit camera when leaving dev mode — not on play/reverse / pause toggles,
+        // otherwise orbit position is lost every time you pause.
+        if (prevMode === 'dev') {
+            controls.enableDamping = false;
+            if (introComplete) {
+                camera.position.set(0, 0, 1);
+            } else {
+                camera.position.set(0, 0, introStartZ);
+            }
             controls.target.set(0, 0, 0);
             controls.update();
+            controls.enableDamping = true;
         }
+        applyDomainScales();
     }
 }
 
@@ -288,11 +330,13 @@ function applyDevMode() {
                     child.visible = true;
                     child.material.opacity = 1.0;
                     child.material.transparent = true;
-                    child.material.depthWrite = true; // force solid depth
+                    if (child.name !== "Sky") { // never overwrite depthWrite for Sky
+                        child.material.depthWrite = true;
+                    } // force solid depth
                 }
                 if (child.isLight) {
                     child.visible = true;
-                    if (child.type === 'PointLight') {
+                    if (child.type === 'PointLight' || child.type === 'DirectionalLight') {
                         // Multiply intensity by square of the scale
                         // 5.0 * (20^2) = 2000 intensity
                         child.intensity = 5.0 * Math.pow(state.targetDevScale, 2);
@@ -313,9 +357,14 @@ function applyDomainScales() {
     // and because they scale up so large
     for (let i = 0; i < domains.length; i++) {
         let domain = domains[i]
-
+        const cache = domainMeshesCache[i];
+        
         if ((i === 0 && introComplete)) { // hide largest off-screen domain
             domain.visible = false;
+            cache.lights.forEach((item) => {
+                item.light.visible = false;
+                item.light.intensity = 0;
+            });
             continue;
         }
 
@@ -324,6 +373,7 @@ function applyDomainScales() {
         const exponent = 1 - i + state.zoomProgress;
         const scaleValue = Math.pow(state.baseScaleFactor, exponent);
         domain.scale.set(scaleValue, scaleValue, scaleValue);
+        const lightRadius = scaleValue;
 
         // Opacity mapping
         let fadeOpacity = exponent + 2.0;
@@ -337,26 +387,36 @@ function applyDomainScales() {
         // });
 
         // Linearly traverse array of children neatly
-        domainMeshesCache[i].forEach((child) => {
-            child.visible = domain.visible;
-            child.renderOrder = i; // ensure correct painter's algorithm
-            // alphaTest 0.05 prevents invisible pixels from glitching the depth buffer
-            child.material.alphaTest = 0.05;
-            // only write depth when the sphere is mostly solid (>80%) to stop Z-fighting
-            child.material.depthWrite = (finalOpacity > 0.8);
+        let opacityOver80 = (finalOpacity > 0.8);
+        // Fade the Meshes
+        cache.meshes.forEach((child) => {
+            child.visible = domain.visible;  // ensure correct painter's algorithm
+            child.material.alphaTest = 0.05; // prevents invisible pixels from glitching the depth buffer
+            child.material.depthWrite = opacityOver80; // only write depth when sphere >80% solid (stop Z-fighting)
 
-            // Render sky first, then others on top
-            if (child.name === "Sky") {
-                child.renderOrder = i*10;
+            if (child.name === "Sky") { // Render sky first, then others on top
+                child.renderOrder = i * 10;
+                child.material.depthWrite = false;
             } else {
-                child.renderOrder = (i*10) + 1;
+                child.renderOrder = (i * 10) + 1;
+                child.material.depthWrite = opacityOver80;
             }
 
-            // If custom shader found, fade it via uniform. Else, fade normally
-            if (child.material.uniforms && child.material.uniforms.u_local_opacity) {
+            if (child.material.uniforms && child.material.uniforms.u_local_opacity) { // Fade custom shader via uniform
                 child.material.uniforms.u_local_opacity.value = finalOpacity;
-            } else {
+            } else { // Fade material opacity normally
                 child.material.opacity = finalOpacity;
+            }
+        });
+        // Fade the Lights
+        cache.lights.forEach((item) => {
+            item.light.visible = domain.visible;
+            // Multiply original intensity by opacity to fade them out
+            item.light.intensity = domain.visible ? (item.baseIntensity * finalOpacity) : 0; // zero out intensity if domain hidden
+            // Finite range so stacked domain lights do not wash out distant shells (was distance=0 / infinite).
+            if (domain.visible && item.light.isPointLight) {
+                item.light.decay = 1;
+                item.light.distance = lightRadius;
             }
         });
     }
@@ -367,12 +427,14 @@ function shiftDomainsForward() {
     const passedDomain = domains.shift(); // removes first (biggest) outer-domain from array
     domains.push(passedDomain); // move outer-domain to end (smallest)
     domainMeshesCache.push(domainMeshesCache.shift());
+    state.domainOrderStr = domains.map(d => d.userData.id).join(' -> ');
 }
 
 function shiftDomainsBackward() {
     const coreDomain = domains.pop(); // removes last (tiniest) domain
     domains.unshift(coreDomain); // move domain to beginning (biggest) outer-domain
     domainMeshesCache.unshift(domainMeshesCache.pop());
+    state.domainOrderStr = domains.map(d => d.userData.id).join(' -> ');
 }
 
 // ===================== Render Loop =====================
@@ -382,6 +444,10 @@ function animate() {
     const delta = clock.getDelta();
     state.shaderTime += state.speed * delta * state.direction;
 
+    const showHelpers = state.mode === 'dev' && state.showLightHelpers;
+    if (d1_helper1) { d1_helper1.visible = showHelpers; d1_helper1.update(); }
+    if (d1_helper2) { d1_helper2.visible = showHelpers; d1_helper2.update(); }
+    if (d2_helper) { d2_helper.visible = showHelpers; d2_helper.update(); }
 
     // Intro "Cutscene" on Play pressed
     if (!introComplete && state.mode !== 'dev' && !state.isPaused) {
@@ -394,11 +460,39 @@ function animate() {
 
         // Camera Zoom: Quintic Ease Out
         const t = Math.min(introProgress / introDuration, 1.0);
-        // Quintic Ease Out: 1 - (1 - t)^5
-        // Starts fast, then slows into Z=1
+        // Ease Out: 1 - (1 - t)^6 (starts fast, slows to Z=1)
         const eased = 1 - Math.pow(1 - t, 6);
-
         camera.position.z = introStartZ - (introStartZ - 1.0) * eased; // zoom to 1.0
+        // Reset X and Y so camera shake (later) is always centered
+        camera.position.x = 0
+        camera.position.y = 0
+
+        controls.update();
+
+        // Gojo PNG Zoom:
+        // Keep image square (otherwise it stretches to your wide screen)
+        const aspect = window.innerWidth / window.innerHeight;
+        // Ease Out Scaling (start fast -> slows)
+        const gojoScale = Math.pow(introShaderProgress * 2.0, 1.5);
+        // Apply scale (multiply Y by aspect ratio to un-stretch image)
+        gojoMesh.scale.set(gojoScale * aspect, gojoScale * aspect, 1);
+        // Opacity Animation: Fade in fast, fade out at the end
+        const fadeIn = THREE.MathUtils.smoothstep(introShaderProgress * 3.0, 0.0, 0.1);
+        const fadeOut = 1.0 - THREE.MathUtils.smoothstep(introShaderProgress * 2.0, 0.6, 1.0);
+        gojoMat.opacity = fadeIn * fadeOut;
+
+        // Camera Shake
+        const shakeIntensity = Math.pow(1.0 - introShaderProgress, 2);
+        const magnitude = 50.0;
+        if (shakeIntensity > 0) {
+            const xDistCam = (Math.random() - 0.5) * magnitude * shakeIntensity; // x offset
+            const yDistCam = (Math.random() - 0.5) * magnitude * shakeIntensity; // y offset
+            const xDistGojo = (Math.random() - 0.5) * 2 * shakeIntensity;
+            const yDistGojo = (Math.random() - 0.5) * 2 * shakeIntensity;
+            camera.position.x += xDistCam;
+            camera.position.y += yDistCam;
+            gojoMesh.position.set(xDistGojo / 50, yDistGojo / 50, 0);
+        }
 
         // Last 25% of intro, gradually start the zoom (domain scaling)
         if (t > 0.75) {
@@ -422,7 +516,6 @@ function animate() {
             state.isPaused = false; // starts zoom loop
         }
 
-        controls.update();
         state.progressDisplay.updateDisplay();
 
         // Let shaders run during intro
@@ -430,7 +523,6 @@ function animate() {
 
         return; // skips normal loop logic during intro
     }
-
 
     // Zoom Loop
     if ((state.mode === 'play' || state.mode === 'reverse') && !state.isPaused) {
@@ -455,5 +547,4 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-state.isPaused = true;
 init();

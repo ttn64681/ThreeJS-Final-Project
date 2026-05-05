@@ -521,6 +521,25 @@ function createCross() {
 } // createCross
 
 // ===================== Domain 3 =====================
+// One loader + GPU textures/materials for all procedural city geometry (was N copies per building / park).
+
+const domain3TexLoader = new THREE.TextureLoader();
+const domain3GrassTex = domain3TexLoader.load('assets/grass-texture.png');
+const domain3SidewalkTex = domain3TexLoader.load('assets/sidewalk-texture.png');
+const domain3BuildingFacadeTex = domain3TexLoader.load('assets/building-texture-sat.png');
+const domain3RoofTex = domain3TexLoader.load('assets/roof-texture.png');
+
+const domain3GrassMat = new THREE.MeshStandardMaterial({
+    side: THREE.DoubleSide,
+    map: domain3GrassTex,
+});
+const domain3SidewalkMat = new THREE.MeshBasicMaterial({ map: domain3SidewalkTex });
+const domain3BuildingBaseMat = new THREE.MeshStandardMaterial({ map: domain3BuildingFacadeTex });
+const domain3RoofMat = new THREE.MeshStandardMaterial({
+    map: domain3RoofTex,
+    roughness: 0.9,
+    metalness: 0.0,
+});
 
 function randomPointOnSphere() {
     const u = Math.random();
@@ -539,16 +558,8 @@ function randomPointOnSphere() {
 function createGrass(width, length) {
     const park = new THREE.Group();
 
-    const texLoader = new THREE.TextureLoader();
-    const grassTex = texLoader.load('assets/grass-texture.png');
-
     const geo = new THREE.BoxGeometry(length, 0.03, width)
-    const mat = new THREE.MeshStandardMaterial( {
-        //color: 0x2ecc71,
-        side: THREE.DoubleSide,
-        map: grassTex,
-    } );
-    const grass = new THREE.Mesh( geo, mat );
+    const grass = new THREE.Mesh(geo, domain3GrassMat);
 
     grass.lookAt(0, 0, 0);
 
@@ -570,12 +581,8 @@ function createGrass(width, length) {
 
 function createSidewalk(width, length) {
 
-    const texLoader = new THREE.TextureLoader();
-    const sidewalkTex = texLoader.load('assets/sidewalk-texture.png');
-
     const geo = new THREE.BoxGeometry(length + 0.03, 0.005, width + 0.03);
-    const mat = new THREE.MeshBasicMaterial({ map: sidewalkTex });
-    const sidewalk = new THREE.Mesh(geo, mat);
+    const sidewalk = new THREE.Mesh(geo, domain3SidewalkMat);
     sidewalk.position.y = 0.01; // slightly above ground
     return sidewalk;
 }
@@ -588,11 +595,8 @@ function createBuilding(width, length) {
 
 
 
-    const texLoader = new THREE.TextureLoader();
-    const baseTex = texLoader.load('assets/building-texture-sat.png');
     const geo = new THREE.BoxGeometry(length, height, width);
-    const mat = new THREE.MeshStandardMaterial({ map: baseTex });
-    const base = new THREE.Mesh(geo, mat);
+    const base = new THREE.Mesh(geo, domain3BuildingBaseMat);
     base.position.y = height / 2;
     building.add(base);
 
@@ -715,14 +719,7 @@ function createBuilding(width, length) {
         geo2.computeVertexNormals();
     }
 
-    const roofMat = new THREE.MeshStandardMaterial({
-        map: texLoader.load('assets/roof-texture.png'),
-        //flatShading: false,
-        roughness: 0.9,
-        metalness: 0.0,
-    });
-
-    const roof = new THREE.Mesh(geo2, roofMat);
+    const roof = new THREE.Mesh(geo2, domain3RoofMat);
     roof.position.y = height;
     building.add(roof);
 
