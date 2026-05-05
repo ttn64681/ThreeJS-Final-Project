@@ -13,9 +13,9 @@ let domains = []; // i=0->1=3 : largest to smallest
 let domainMeshesCache = []; // Hold all currently viewable domain's meshes
 let gui;
 // Light Helpers
-let d1_helper1;
-let d1_helper2;
-let d2_helper;
+// let d1_helper1;
+// let d1_helper2;
+// let d2_helper;
 
 // Delta time for shaders + zoom
 let clock = new THREE.Clock();
@@ -35,10 +35,17 @@ let state = {
     shaderTime: 0.0,
     // showLightHelpers: false,
 };
-
 function refreshDomainOrderStr() {
     state.domainOrderStr = domains.map(d => d.userData.id).join(' > ');
 }
+
+// Intro Music State
+let introMusic = null;
+let introMusicSessionActive = false;
+const musicEngine = {
+    volume: 0.4,
+    paused: false,
+};
 
 // Intro Animation State + Shaders
 let introComplete = false;
@@ -72,7 +79,7 @@ const gojoTex = texLoader.load('./assets/gojo.png');
 const gojoMat = new THREE.MeshBasicMaterial({
     map: gojoTex,
     transparent: true,
-    opacity: 0.0, // start invisible
+    opacity: 0.0,
     depthTest: false,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -134,14 +141,20 @@ function init() {
             }
         });
         domainMeshesCache.push(cache);
-        if (domain.userData.id === 'domain1') {
-            d1_helper1 = domain.userData.helper1;
-            d1_helper2 = domain.userData.helper2;
-        } else if (domain.userData.id === 'domain2') {
-            d2_helper = domain.userData.helper;
-        }
+        // if (domain.userData.id === 'domain1') {
+        //     d1_helper1 = domain.userData.helper1;
+        //     d1_helper2 = domain.userData.helper2;
+        // } else if (domain.userData.id === 'domain2') {
+        //     d2_helper = domain.userData.helper;
+        // }
     });
     refreshDomainOrderStr();
+
+    // ===================== Setup Music =====================
+    introMusic = new Audio('./assets/music.mp3');
+    introMusic.preload = 'auto';
+    introMusic.loop = false;
+    introMusic.volume = musicEngine.volume;
 
     // ===================== GUI =====================
     setupGUI();
@@ -158,8 +171,8 @@ function init() {
 
     renderer.compile(scene, camera); // compile shaders
 
-    // Start system BUT we want to run intro sequence first
-    applyDomainScales(); // ts makes i=1,2,3 visible
+    // Start system w/ initialized domain scales
+    applyDomainScales();
     animate();
 }
 
@@ -188,16 +201,12 @@ function setupGUI() {
     });
     // Extract names and ids for the dropdown mapping
     const domainMapping = {};
-    domains.forEach(d => {
-        domainMapping[d.userData.name] = d.userData.id;
-    });
+    domains.forEach(d => domainMapping[d.userData.name] = d.userData.id);
 
     // Dev Mode Controls
     const devFolder = gui.addFolder('Dev Mode Options');
     devFolder.add(state, 'activeDevDomain', domainMapping).name('Edit Domain').onChange(() => {
-        if(state.mode === 'dev') {
-            applyDevMode()
-        };
+        if(state.mode === 'dev') applyDevMode();
     });
     devFolder.add(state, 'targetDevScale', 0.15, 5).name('Room Size').onChange(() => {
         if(state.mode === 'dev') {
@@ -212,16 +221,27 @@ function setupGUI() {
     const moonFolder = gui.addFolder('Moon & Sky');
     moonFolder; // hidden until dev mode activates Domain 1
     const colorProxy = { rimColor: globalUniforms.u_color.value.getHex() };
-    // Wire directly into globalUniforms
     moonFolder.addColor(colorProxy, 'rimColor').name('Rim Color').onChange(v => {
         globalUniforms.u_color.value.setHex(v);
     });
     moonFolder.add(globalUniforms.u_power, 'value', 0.5, 8).name('Rim Tightness');
     moonFolder.add(globalUniforms.u_intensity, 'value', 0.1, 5).name('Rim Intensity');
 
+    // Music Controls
+    const musicFolder = gui.addFolder('Music Engine');
+    musicFolder.add(musicEngine, 'volume', 0, 1).step(0.01).name('Volume').onChange((v) => {
+        if (introMusic) introMusic.volume = v;
+    });
+    musicFolder.add(musicEngine, 'paused').name('Pause music').onChange((v) => {
+        if (!introMusic) return;
+        if (v) introMusic.pause();
+        else if (introMusicSessionActive) introMusic.play().catch(() => {});
+    });
+
     // Intro Reset Btn
     const introControls = {
         resetIntro: () => {
+            stopIntroMusic();
             introComplete = false;
             introProgress = 0.0;
             introShaderProgress = 0.0;
@@ -237,6 +257,22 @@ function setupGUI() {
         }
     };
     engineFolder.add(introControls, 'resetIntro').name('Replay Intro');
+}
+
+function stopIntroMusic() {
+    if (!introMusic) return;
+    introMusic.pause();
+    introMusic.currentTime = 0;
+    introMusicSessionActive = false;
+}
+
+function startIntroMusicFromBeginning() {
+    if (!introMusic) return;
+    introMusic.pause();
+    introMusic.currentTime = 0;
+    introMusic.volume = musicEngine.volume;
+    introMusicSessionActive = true;
+    if (!musicEngine.paused) introMusic.play().catch(() => {});
 }
 
 // ===================== Button Wiring =====================
@@ -271,9 +307,7 @@ function setMode(mode, dir, btnElement) {
     } else {
         controls.enablePan = false;
         controls.enableZoom = false;
-        // Only snap the orbit camera when leaving dev mode — not on play/reverse / pause toggles,
-        // otherwise orbit position is lost every time you pause.
-        if (prevMode === 'dev') {
+        if (prevMode === 'dev') { // reset orbit only when leaving dev, not on pause/play
             controls.enableDamping = false;
             if (introComplete) {
                 camera.position.set(0, 0, 1);
@@ -288,27 +322,27 @@ function setMode(mode, dir, btnElement) {
     }
 }
 
-// Walk parents — same idea as traverseAncestors but avoids API quirks; skips light-helper gizmo subtrees in dev.
+// Walk parents and checks if they are a light helper gizmo
 function isUnderLightHelperGizmo(obj) {
     let p = obj.parent;
-    while (p) {
+    while (p) { // walk up; helper gizmo roots tagged in domains
         if (p.userData?.isLightHelperGizmo) return true;
         p = p.parent;
     }
     return false;
 }
 
-/** GLTF / multi-material meshes use material[] — always apply opacity / depth flags per slot. */
+// For each material in the mesh, apply the function
+// (For applying opacity/depth per mesh inG LTF / multi-material meshes, which use material[])
 function forEachMaterial(mesh, fn) {
-    const m = mesh.material;
+    const m = mesh.material; // single mat or [] (GLTF)
     if (Array.isArray(m)) m.forEach(fn);
     else fn(m);
 }
 
 // ===================== Math Logic =====================
 
-// Dev mode: single domain at "targetDevScale", lights forced bright (5 * scale^2).
-function applyDevMode() {
+function applyDevMode() { // one domain visible; lights ~ 5 * scale^2
     domains.forEach(group => {
         if (group.userData.id === state.activeDevDomain) {
             group.visible = true;
@@ -331,9 +365,7 @@ function applyDevMode() {
                 if (child.isLight) {
                     child.visible = true;
                     if (child.type === 'PointLight' || child.type === 'DirectionalLight') {
-                        // Multiply intensity by square of the scale
-                        // 5.0 * (20^2) = 2000 intensity
-                        child.intensity = 5.0 * Math.pow(state.targetDevScale, 2);
+                        child.intensity = 5.0 * Math.pow(state.targetDevScale, 2); // ~ 5 * scale^2 ≠ 2000 intensity
                     } else {
                         child.intensity = 0.4; // reset ambient to normal
                     }
@@ -345,7 +377,7 @@ function applyDevMode() {
     });
 }
 
-// Play mode: "applyDomainScales" drives shell scale + fades
+// Play mode: shell scale + fades
 function applyDomainScales() {
     // i=0 -> i=3 : largest domain -> smallest domain
     // We only ever see at most 3 domains at a time given our camera is so close
@@ -370,8 +402,7 @@ function applyDomainScales() {
         domain.scale.set(scaleValue, scaleValue, scaleValue);
         const lightRadius = scaleValue;
 
-        // Opacity mapping
-        let fadeOpacity = exponent + 2.0;
+        let fadeOpacity = exponent + 2.0; // -> [0,1] shell cross-fade
         const finalOpacity = Math.max(0, Math.min(1, fadeOpacity));
 
         // Recurse each child/group in the domain to update render order and opacity (BOTTLENECK)
@@ -385,22 +416,21 @@ function applyDomainScales() {
         let opacityOver80 = (finalOpacity > 0.8);
         // Fade the Meshes
         cache.meshes.forEach((child) => {
-            child.visible = domain.visible;  // ensure correct painter's algorithm
-
+            child.visible = domain.visible; // ensure correct painter's algorithm
             if (child.name === "Sky") { // Render sky first, then others on top
-                child.renderOrder = i * 10;
+                child.renderOrder = i * 10; // render sky first
                 forEachMaterial(child, (mat) => {
-                    mat.alphaTest = 0.05;
-                    mat.depthWrite = false;
+                    mat.alphaTest = 0.05; // prevent invisible pixels from glitching depth buffer
+                    mat.depthWrite = false; // don't write depth for sky
                 });
             } else {
-                child.renderOrder = (i * 10) + 1;
+                child.renderOrder = (i * 10) + 1; // render other meshes on top
                 forEachMaterial(child, (mat) => {
                     mat.alphaTest = 0.05; // prevents invisible pixels from glitching the depth buffer
                     mat.depthWrite = opacityOver80; // only write depth when sphere >80% solid (stop Z-fighting)
                 });
             }
-
+            // Fade the Materials
             const mats = Array.isArray(child.material) ? child.material : [child.material];
             mats.forEach((mat) => {
                 if (mat.uniforms && mat.uniforms.u_local_opacity) {
@@ -415,7 +445,7 @@ function applyDomainScales() {
             item.light.visible = domain.visible;
             // Multiply original intensity by opacity to fade them out
             item.light.intensity = domain.visible ? (item.baseIntensity * finalOpacity) : 0; // zero out intensity if domain hidden
-            // Finite range so stacked domain lights do not wash out distant shells (distance=0 / decay=0 = infinite reach).
+            // Give each visible point light a finite range
             if (domain.visible && item.light.isPointLight) {
                 item.light.decay = 1;
                 item.light.distance = lightRadius;
@@ -441,9 +471,10 @@ function shiftDomainsBackward() {
 
 // ===================== Render Loop =====================
 
-/** Intro + Gojo overlay path; returns true if this frame is fully handled here (no normal scene pass). */
 function runIntroCutscene(delta) {
     if (introComplete || state.mode === 'dev' || state.isPaused) return false;
+
+    if (introProgress === 0) startIntroMusicFromBeginning();
 
     introProgress += delta;
 
@@ -457,6 +488,7 @@ function runIntroCutscene(delta) {
     // Ease Out: 1 - (1 - t)^6 (starts fast, slows to Z=1)
     const eased = 1 - Math.pow(1 - t, 6);
     camera.position.z = introStartZ - (introStartZ - 1.0) * eased; // zoom to 1.0
+    
     // Reset X and Y so camera shake (later) is always centered
     camera.position.x = 0
     camera.position.y = 0

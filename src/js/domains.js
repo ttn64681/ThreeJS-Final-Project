@@ -3,7 +3,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 import {spawnBonePiles, warpTerrain, spawnSwords, spawnCrosses, generateBuildings} from './procedural.js';
-// GLSL lives in ../shaders/*.js (this file is under src/js/, shaders/ is a sibling folder).
 import { vertexShader as domain1SkyVertex, fragmentShader as domain1SkyFragment } from '../shaders/domain1Sky.js';
 import { vertexShader as moonRimVertex, fragmentShader as moonRimFragment } from '../shaders/moonRim.js';
 import { vertexShader as domain2SkyVertex, fragmentShader as domain2SkyFragment } from '../shaders/domain2AuroraSky.js';
@@ -14,7 +13,7 @@ const baseGeometry = new THREE.SphereGeometry(1, 64, 64);
 // Shared ground geometry (use .clone())
 const groundGeometry = createGridCircleGeometry(0.98, 64);
 
-// Domain 3 road sphere — shared shell material (single texture on GPU)
+// Domain 3 road shell (shared road mat)
 const texLoader = new THREE.TextureLoader();
 const roadTex = texLoader.load('assets/road-texture.png');
 roadTex.wrapS = THREE.RepeatWrapping;
@@ -136,8 +135,7 @@ export function createDomain1() {
     // Hijack shader to add ripples to the original three.js prebuilt shader on water material
     // this prevents me from needing to write my own custom reflection shader.
     // basically adding a shader in between the prebuilt three js shader that exists w/in every object material
-    // im adding the vertex deformation shader ON TOP of the existing fragment shader
-    // (vertex chunk text is in ../shaders/domain1WaterPatches.js — keeps domains.js as wiring / comments only)
+    // I'm adding the vertex deformation shader ON TOP of the existing fragment shader.
     waterMat.onBeforeCompile = (shader) => {
         shader.uniforms.u_time = globalUniforms.u_time;
 
@@ -325,10 +323,7 @@ export function createDomain3() {
     const mesh = new THREE.Mesh(baseGeometry, material);
     group.add(mesh);
 
-    // Warm fill for the city shell — this has always been a PointLight (not a SpotLight); sits near +Z in local space.
-    // In play mode main.js scales the whole domain and applies distance/decay each frame, so it can look dimmer than dev
-    // (dev inflates intensities in applyDevMode with 5 * roomScale² for the one room you edit).
-    const coreLight = new THREE.PointLight(0xffdd55, 4.0, 1, 2);
+    const coreLight = new THREE.PointLight(0xffdd55, 4.0, 1, 2); // warm fill inside shell
     group.add(coreLight);
     coreLight.position.set(0.0, 0.2, 0.7);
 

@@ -58,7 +58,6 @@ const bullSkullMat = new THREE.MeshStandardMaterial({
 });
 const darkMat = new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 1.0 });
 
-// Shared bull skull building blocks (avoids allocating SphereGeometry / TubeGeometry per spawn)
 const bullCraniumGeo = new THREE.SphereGeometry(0.09, 10, 8);
 bullCraniumGeo.scale(1.3, 0.7, 1.0);
 const bullSnoutGeo = new THREE.BoxGeometry(0.08, 0.055, 0.12);
@@ -156,13 +155,13 @@ export function createSkull() {
     const group = new THREE.Group();
     group.add(skullCranium.clone());
     group.add(skullJaw.clone());
-    // Eye sockets — two recessed spheres (left / right on the cranium)
+    // Eye sockets - two recessed spheres (left / right on the cranium)
     [-0.018, 0.018].forEach((xOffset) => {
         const eye = skullSocket.clone();
         eye.position.set(xOffset, 0.062, 0.034);
         group.add(eye);
     });
-    // Nasal cavity — single center sphere (forward on snout)
+    // Nasal cavity - single center sphere
     const nose = skullNose.clone();
     nose.position.set(0, 0.045, 0.055);
     group.add(nose);
@@ -448,7 +447,7 @@ export function createSword() {
         0.012,              // top radius (narrower near tsuba)
         0.016,              // bot radius (wider at pommel)
         handleHeight,  // length scales w/ sword
-        8                   // facets — slightly faceted for wrapped grip look
+        8                   // facets - slightly faceted grip
     );
     const handle = new THREE.Mesh(handleGeo, handleMat);
     // Blade base + half handle's height (to move center up)
