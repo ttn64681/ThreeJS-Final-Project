@@ -22,7 +22,7 @@ const baseGeometry = new THREE.SphereGeometry(1, 64, 64);
 // Shared ground geometry (use .clone())
 const groundGeometry = createGridCircleGeometry(0.98, 64);
 
-// Domain 3 road sphere — shared shell material (single texture on GPU)
+// Domain 3 road shell (shared road mat)
 const texLoader = new THREE.TextureLoader();
 const roadTex = texLoader.load('assets/road-texture.png');
 roadTex.wrapS = THREE.RepeatWrapping;
@@ -144,8 +144,7 @@ export function createDomain1() {
     // Hijack shader to add ripples to the original three.js prebuilt shader on water material
     // this prevents me from needing to write my own custom reflection shader.
     // basically adding a shader in between the prebuilt three js shader that exists w/in every object material
-    // im adding the vertex deformation shader ON TOP of the existing fragment shader
-    // (vertex chunk text is in ../shaders/domain1WaterPatches.js — keeps domains.js as wiring / comments only)
+    // I'm adding the vertex deformation shader ON TOP of the existing fragment shader.
     waterMat.onBeforeCompile = (shader) => {
         shader.uniforms.u_time = globalUniforms.u_time;
 
@@ -303,7 +302,7 @@ export function createDomain2() {
 
 // TODO: Sidhant
 // ==========================================
-// DOMAIN 3:
+// DOMAIN 3: HURTBREAK WONDERLAND
 // ==========================================
 export function createDomain3() {
 
