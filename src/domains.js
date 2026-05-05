@@ -684,7 +684,7 @@ export function createDomain3() {
 
     domainTex.repeat.set(20, 20);
 
-    const material = new THREE.MeshBasicMaterial({
+    const material = new THREE.MeshStandardMaterial({
         //color: 0x828282, // beige
         side: THREE.BackSide,
         transparent: true,
@@ -717,9 +717,132 @@ export function createDomain3() {
     const mesh = new THREE.Mesh(baseGeometry, material);
     group.add(mesh);
 
-    const coreLight = new THREE.PointLight(0xffdd55, 3.0, 1, 2);
+    const coreLight = new THREE.PointLight(0xffdd55, 50.0, 1, 2);
     group.add(coreLight);
-    coreLight.position.set(0.0, 0.2, 0.7);
+    coreLight.position.set(0.0, 0.2, -0.9);
+
+
+    for (let i = 0; i < 8; i++) {
+        const otherLight = new THREE.PointLight(0xffdd55, 3.0, 1, 2);
+
+        const radius = 5;
+        const angle = (i / 8) * Math.PI * 2;
+
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+
+        group.add(otherLight);
+        otherLight.position.set(x * 0.1, z * 0.1, -0.2);
+    }
+
+    const backLight = new THREE.PointLight(0xffdd55, 1.0, 1, 2);
+    group.add(backLight);
+    backLight.position.set(0.0, -0.2, 0.8);
+
+    const fogGeo = new THREE.SphereGeometry(0.75, 64, 64); // smaller than sky
+    // const fogMat = new THREE.MeshStandardMaterial({
+    //     side: THREE.BackSide,
+    //     transparent: true,
+    //     opacity: 0.3,
+    //     softnoise: true,
+    // });
+
+    const fogMat = new THREE.ShaderMaterial({
+        uniforms: {
+            u_time: globalUniforms.u_time,
+            u_local_opacity: { value: 1.0 }
+        },
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+        //opacity: 0.7,
+        vertexShader: `
+            varying vec3 vPos;
+            void main() {
+                vPos = position;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform float u_time;
+            varying vec3 vPos;
+            
+            float noise3D(vec3 p);
+            
+            vec3 random3(vec3 p) {
+                p = vec3(dot(p, vec3(127.1, 311.7, 74.4)),
+                         dot(p, vec3(269.5, 183.3, 246.1)),
+                         dot(p, vec3(113.5, 271.9, 124.6)));
+                // Return a random vec on sphere or just a random normalized vector
+                return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+            }
+            float noise3D(vec3 p) {
+                vec3 i = floor(p);
+                vec3 f = fract(p);
+                
+                // Smoothstep interpolation (quintic: 6t^5 - 15t^4 + 10t^3) 
+                vec3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+            
+                // Calc dot products for the 8 corners of the cube
+                float n000 = dot(random3(i + vec3(0,0,0)), f - vec3(0,0,0));
+                float n100 = dot(random3(i + vec3(1,0,0)), f - vec3(1,0,0));
+                float n010 = dot(random3(i + vec3(0,1,0)), f - vec3(0,1,0));
+                float n110 = dot(random3(i + vec3(1,1,0)), f - vec3(1,1,0));
+                float n001 = dot(random3(i + vec3(0,0,1)), f - vec3(0,0,1));
+                float n101 = dot(random3(i + vec3(1,0,1)), f - vec3(1,0,1));
+                float n011 = dot(random3(i + vec3(0,1,1)), f - vec3(0,1,1));
+                float n111 = dot(random3(i + vec3(1,1,1)), f - vec3(1,1,1));
+            
+                // Trilinear interpolation using the smooth weights (u)
+                return mix(
+                    mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
+                    mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y),
+                    u.z
+                );
+            }
+            
+            void main() {
+                vec3 p = vPos * 2.0;
+            
+                float time = u_time * 0.2;
+            
+                // slow drifting
+                p.y -= time;
+            
+                float n = noise3D(p);
+                n += 0.5 * noise3D(p * 2.0);
+                n /= 1.5;
+            
+                // normalize
+                n = n * 0.5 + 0.5;
+            
+                // soften it heavily
+                float fog = smoothstep(0.4, 0.7, n);
+            
+                // fade top/bottom so it "hovers"
+                float heightMask = smoothstep(-0.2, 0.3, vPos.y);
+            
+                float alpha = fog * heightMask * 0.7;
+            
+                vec3 color = vec3(0.4, 0.4, 0.5);
+            
+                gl_FragColor = vec4(color, alpha);
+            }
+        `
+    });
+
+    // const fog1 = new THREE.Mesh(fogGeo, fogMat);
+    // fog1.position.set(0.0, -0.2, 0.0);
+    // group.add(fog1);
+    //
+    // const fog2 = new THREE.Mesh(fogGeo, fogMat);
+    // fog2.position.set(0.0, -0.2, 0.0);
+    // fog2.scale.set(0.9, 0.9, 0.9);
+    // fog2.material.uniforms.u_time = globalUniforms.u_time;
+    // group.add(fog2);
+
+
 
 
     // const glowGeo = new THREE.SphereGeometry(0.2, 16, 16);

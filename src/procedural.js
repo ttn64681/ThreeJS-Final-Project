@@ -533,7 +533,7 @@ const domain3GrassMat = new THREE.MeshStandardMaterial({
     side: THREE.DoubleSide,
     map: domain3GrassTex,
 });
-const domain3SidewalkMat = new THREE.MeshBasicMaterial({ map: domain3SidewalkTex });
+const domain3SidewalkMat = new THREE.MeshStandardMaterial({ map: domain3SidewalkTex });
 const domain3BuildingBaseMat = new THREE.MeshStandardMaterial({ map: domain3BuildingFacadeTex });
 const domain3RoofMat = new THREE.MeshStandardMaterial({
     map: domain3RoofTex,
