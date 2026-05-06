@@ -1,0 +1,7 @@
+dist/
+node_modules/
+.idea/
+report/
+code/README.txt
+.DS_Store
+**/.DS_Store

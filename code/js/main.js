@@ -4,6 +4,7 @@ import GUI from 'lil-gui';
 
 // Import domain generation functions from your separate file
 import {createDomain1, createDomain2, createDomain3, createDomain4, globalUniforms} from './domains.js';
+import { getPerf } from './perfSettings.js';
 import {animateFloatingDebris} from './procedural.js';
 import { introOverlayVertex, introOverlayFragment } from '../shaders/introOverlay.js';
 
@@ -55,6 +56,10 @@ const introDuration = 5.0; // total intro seconds
 const introStartZ = 1000.0; // starting camera distance
 let introProgress = 0.0; // raw elapsed time in intro
 
+// Fade Domain's Light as we transition to New Domain (inner)
+const outerLightFadeStartProgress = 0.70; // forward play: start dimming toward progress 1.0
+const outerLightFadeReverseProgress = 1.0 - outerLightFadeStartProgress; // reverse: dim as progress approaches 0
+
 // Intro overlay - fullscreen quad w/ shader mat
 // rendered in separate orthographic scene on top
 const introScene = new THREE.Scene();
@@ -91,6 +96,7 @@ introScene.add(gojoMesh);
 
 // ===================== Init =====================
 function init() {
+    const perf = getPerf();
     const container = document.getElementById('canvas-container');
 
     // Scene
@@ -109,13 +115,13 @@ function init() {
         stencil: false,   // not using stencil buffer
         depth: true,
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // was 2
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, perf.maxPixelRatio));
 
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = false;
     container.appendChild(renderer.domElement);
 
-    renderer.physicallyCorrectLights = true;
+    renderer.physicallyCorrectLights = perf.physicallyCorrectLights;
 
     // Orbit Controls
     controls = new OrbitControls(camera, renderer.domElement);
@@ -195,6 +201,16 @@ function setupGUI() {
 
     // Animation Controls
     const engineFolder = gui.addFolder('Animation Engine');
+    const perfNow = getPerf();
+    const perfPick = { quality: perfNow.tier };
+    engineFolder
+        .add(perfPick, 'quality', { high: 'high', medium: 'medium', low: 'low' })
+        .name('GPU quality (reloads)')
+        .onChange((v) => {
+            const u = new URL(window.location.href); // grab curr url
+            u.searchParams.set('perf', v);           // set ?perf=v (v == 'high', 'medium', 'low')
+            window.location.href = u.toString();     // reload page w/ new perf setting
+        });
     engineFolder.add(state, 'domainOrderStr').name('Current Order').listen().disable();
     state.progressDisplay = engineFolder.add(state, 'zoomProgress').name('Zoom Progress: ').decimals(4).disable();
     engineFolder.add(state, 'speed', 0.01, 1.5).name('Zoom Speed');
@@ -443,10 +459,22 @@ function applyDomainScales() {
             });
         });
         // Fade the Lights
+        let outerLightOpacity = 1.0;
+        if (introComplete && i === 1 && state.mode !== 'dev') {
+            if (state.direction === 1 && state.zoomProgress > outerLightFadeStartProgress) {
+                // smoothstep: 0.0 -> 1.0 as t goes from start to end
+                outerLightOpacity = 1.0 - THREE.MathUtils.smoothstep(state.zoomProgress, outerLightFadeStartProgress, 1.0); // 1.0->0.0
+            } else if (state.direction === -1 && state.zoomProgress < outerLightFadeReverseProgress) {
+                outerLightOpacity = THREE.MathUtils.smoothstep(state.zoomProgress, 0.0, outerLightFadeReverseProgress); // 0.0->1.0
+            }
+        }
         cache.lights.forEach((item) => {
             item.light.visible = domain.visible;
             // Multiply original intensity by opacity to fade them out
-            item.light.intensity = domain.visible ? (item.baseIntensity * finalOpacity) : 0; // zero out intensity if domain hidden
+            const outerLight = (i === 1) ? outerLightOpacity : 1.0;
+            item.light.intensity = domain.visible
+                ? (item.baseIntensity * finalOpacity * outerLight) // outerLightFade overpowers finalOpacity of domain i==1
+                : 0; // zero out intensity if domain hidden
             // Give each visible point light a finite range
             if (domain.visible && item.light.isPointLight) {
                 item.light.decay = 1;
