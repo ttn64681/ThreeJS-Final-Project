@@ -860,9 +860,7 @@ export function createDoor(width, length) {
 
 }
 
-export function generateDoors(group) {
-    const rows = 19;
-    const cols = 36;
+export function generateDoors(group, rows = 19, cols = 36) {
 
     const spacingX = 0.04;
     const spacingZ = 0.08;

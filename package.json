@@ -1,0 +1,7 @@
+{
+  "name": "domain-expansion-exhibition",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/sync-dist.cjs"
+  }
+}

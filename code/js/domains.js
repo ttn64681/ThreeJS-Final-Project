@@ -10,6 +10,7 @@ import {
     generateBuildings,
     generateDoors
 } from './procedural.js';
+import { getPerf } from './perfSettings.js';
 // GLSL lives in ../shaders/*.js (this file is under src/js/, shaders/ is a sibling folder).
 import { vertexShader as domain1SkyVertex, fragmentShader as domain1SkyFragment } from '../shaders/domain1Sky.js';
 import { vertexShader as moonRimVertex, fragmentShader as moonRimFragment } from '../shaders/moonRim.js';
@@ -17,10 +18,12 @@ import { vertexShader as domain3CloudVertex, fragmentShader as domain3CloudFragm
 import { vertexShader as domain2SkyVertex, fragmentShader as domain2SkyFragment } from '../shaders/domain2AuroraSky.js';
 import { injectCommon as waterInjectCommon, injectBeginVertex as waterInjectBeginVertex, injectBeginNormal as waterInjectBeginNormal } from '../shaders/domain1WaterPatches.js';
 
+// Get performance settings for passing mesh counts to procedural functions
+const perf = getPerf();
 // Single sphere geometry for the "Sky" (use .clone())
-const baseGeometry = new THREE.SphereGeometry(1, 64, 64);
+const baseGeometry = new THREE.SphereGeometry(1, perf.skySegments, perf.skySegments);
 // Shared ground geometry (use .clone())
-const groundGeometry = createGridCircleGeometry(0.98, 64);
+const groundGeometry = createGridCircleGeometry(0.98, perf.groundSegments);
 
 // Domain 3 road shell (shared road mat)
 const texLoader = new THREE.TextureLoader();
@@ -207,7 +210,7 @@ export function createDomain1() {
     });
 
     // Moon body
-    const moonGeo = new THREE.SphereGeometry(0.08, 32, 32);
+    const moonGeo = new THREE.SphereGeometry(0.08, perf.moonSegments, perf.moonSegments);
     const moonMat = new THREE.MeshStandardMaterial({
         color: 0x000000,
         roughness: 0.8,
@@ -219,7 +222,7 @@ export function createDomain1() {
     group.add(moon);
     // Rim glow - slightly larger sphere rendered from inside
     // w/ fresnel shader that's bright at edges, dark in center
-    const rimGeo = new THREE.SphereGeometry(0.085, 32, 32);
+    const rimGeo = new THREE.SphereGeometry(0.085, perf.moonSegments, perf.moonSegments);
     const rimMat = new THREE.ShaderMaterial({
         uniforms: {
             u_color: globalUniforms.u_color,
@@ -237,7 +240,7 @@ export function createDomain1() {
     group.add(rimMesh);
 
     // Procedural
-    spawnBonePiles(group, ground, 50);
+    spawnBonePiles(group, ground, perf.bonePiles);
 
     // Export Moon and RimMesh to control fresnel + intensity via main.js lil-gui
     // group.userData = { id: 'domain1', name: 'Malevolent Shrine', helper1: helper1, helper2: helper2 };
@@ -292,8 +295,8 @@ export function createDomain2() {
     const crossGroup = new THREE.Group();
     group.add(crossGroup);
     // Procedural
-    spawnCrosses(crossGroup, ground, 25)
-    spawnSwords(group, ground, crossGroup, 150);
+    spawnCrosses(crossGroup, ground, perf.crosses);
+    spawnSwords(group, ground, crossGroup, perf.swords);
 
     // group.userData = { id: 'domain2', name: 'Mutual Authentic Love', helper: helper };
     group.userData = { id: 'domain2', name: 'Mutual Authentic Love' };
@@ -488,13 +491,13 @@ export function createDomain3() {
     // fog2.material.uniforms.u_time = globalUniforms.u_time;
     // group.add(fog2);
 
-    const mat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.1,
-        fog: true
-    });
-    group.add(mat);
+    // const mat = new THREE.MeshStandardMaterial({
+    //     color: 0xffffff,
+    //     transparent: true,
+    //     opacity: 0.1,
+    //     fog: true
+    // });
+    // group.add(mat);
 
 
 
@@ -527,7 +530,7 @@ export function createDomain3() {
 
     //addLightGroundSky(group, 0x00ff00);
 
-    generateBuildings(group, 400);
+    generateBuildings(group, perf.buildings);
     //const building = createBuildingTest();
     //group.add(building);
 
@@ -572,7 +575,7 @@ export function createDomain4() {
     group.add(mesh);
 
     const doorGroup = new THREE.Group();
-    generateDoors(doorGroup);
+    generateDoors(doorGroup, perf.doorRows, perf.doorCols);
     doorGroup.position.y = 0.5;
     //doorGroup.rotation.x = Math.PI;
     group.add(doorGroup);

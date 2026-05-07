@@ -1,0 +1,8 @@
+dist/
+node_modules/
+.idea/
+report/
+rubric/
+code/README.txt
+.DS_Store
+**/.DS_Store
