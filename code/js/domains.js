@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';              // load 3D models
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js'; // decode meshopt encoded models
 
 import {
     spawnBonePiles,
@@ -9,23 +9,24 @@ import {
     spawnCrosses,
     generateBuildings,
     generateDoors
-} from './procedural.js';
-import { getPerf } from './perfSettings.js';
-// GLSL lives in ../shaders/*.js (this file is under src/js/, shaders/ is a sibling folder).
+} from './procedural.js'; // procedural mesh generation funcs 
+
+// Shader strings
 import { vertexShader as domain1SkyVertex, fragmentShader as domain1SkyFragment } from '../shaders/domain1Sky.js';
 import { vertexShader as moonRimVertex, fragmentShader as moonRimFragment } from '../shaders/moonRim.js';
-import { vertexShader as domain3CloudVertex, fragmentShader as domain3CloudFragment } from '../shaders/domain3Cloud.js';
+// import { vertexShader as domain3CloudVertex, fragmentShader as domain3CloudFragment } from '../shaders/domain3Cloud.js';
 import { vertexShader as domain2SkyVertex, fragmentShader as domain2SkyFragment } from '../shaders/domain2AuroraSky.js';
 import { injectCommon as waterInjectCommon, injectBeginVertex as waterInjectBeginVertex, injectBeginNormal as waterInjectBeginNormal } from '../shaders/domain1WaterPatches.js';
 
-// Get performance settings for passing mesh counts to procedural functions
+import { getPerf } from './perfSettings.js'; // performance settings parameters 
+
 const perf = getPerf();
-// Single sphere geometry for the "Sky" (use .clone())
+
+// Shared geometries
 const baseGeometry = new THREE.SphereGeometry(1, perf.skySegments, perf.skySegments);
-// Shared ground geometry (use .clone())
 const groundGeometry = createGridCircleGeometry(0.98, perf.groundSegments);
 
-// Domain 3 road shell (shared road mat)
+// Domain 3 global vars (shared road material)
 const texLoader = new THREE.TextureLoader();
 const roadTex = texLoader.load('assets/road-texture.png');
 roadTex.wrapS = THREE.RepeatWrapping;
@@ -44,12 +45,12 @@ const roadShellMaterial = new THREE.MeshBasicMaterial({
 export const globalUniforms = {
     u_time: { value: 0.0 },
     u_color: { value: new THREE.Color(0xffaaaa) },
-    u_power: { value: 2.0 },  // higher = tighter rim
+    u_power: { value: 2.0 },  // moon fresnel shader params; higher = tighter rim
     u_intensity: { value: 2.0 }
 };
 
-// Problem w/ just a Circle Geo: it draws triangles from a single center vertex
-// To fix, we need to create a square grid geo w/ multiple vertices.
+// Problem w/ just Circle Geo: it draws triangles from a single center vertex
+// To fix, need to create a square grid geo w/ multiple vertices.
 function createGridCircleGeometry(radius, segments) {
     // Create square
     const size = radius * 2;
@@ -77,33 +78,33 @@ function createGridCircleGeometry(radius, segments) {
     return geometry;
 }
 
-function addLightGroundSky(group, color) {
-    const ambient = new THREE.AmbientLight(color, 0.4);
-    group.add(ambient);
+// function addLightGroundSky(group, color) {
+//     const ambient = new THREE.AmbientLight(color, 0.4);
+//     group.add(ambient);
 
-    // Set distance to 0 for infinite range.
-    // Set decay to 0 to stop physics engine from killing light when room scales
-    // distance/decay overridden each frame in applyDomainScales from shell scale; defaults avoid infinite reach.
-    const sun = new THREE.PointLight(color, 5.0, 1, 2);
-    sun.position.set(0, 0.5, 0);
-    sun.castShadow = false;
-    group.add(sun);
+//     // Set distance to 0 for infinite range.
+//     // Set decay to 0 to stop physics engine from killing light when room scales
+//     // distance/decay overridden each frame in applyDomainScales from shell scale; defaults avoid infinite reach.
+//     const sun = new THREE.PointLight(color, 5.0, 1, 2);
+//     sun.position.set(0, 0.5, 0);
+//     sun.castShadow = false;
+//     group.add(sun);
 
-    const groundMat = new THREE.MeshStandardMaterial({
-        color: color,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        metalness: 0.1,
-        roughness: 0.8
-    });
-    const ground = new THREE.Mesh(groundGeometry, groundMat);
-    ground.rotation.x = -Math.PI / 2; // lay flat
-    ground.position.y = -0.2; // slightly below center
-    group.add(ground);
+//     const groundMat = new THREE.MeshStandardMaterial({
+//         color: color,
+//         transparent: true,
+//         depthWrite: false,
+//         side: THREE.DoubleSide,
+//         metalness: 0.1,
+//         roughness: 0.8
+//     });
+//     const ground = new THREE.Mesh(groundGeometry, groundMat);
+//     ground.rotation.x = -Math.PI / 2; // lay flat
+//     ground.position.y = -0.2; // slightly below center
+//     group.add(ground);
 
-    return ground;
-}
+//     return ground;
+// }
 
 // ==========================================
 // DOMAIN 1: MALEVOLENT SHRINE
@@ -141,7 +142,7 @@ export function createDomain1() {
         side: THREE.DoubleSide
     });
 
-    // for compilation optimization
+    // for compilation optimization (idk I'm grasping at straws here)
     waterMat.customProgramCacheKey = function() { return 'water_shader'; };
 
     // Hijack shader to add ripples to the original three.js prebuilt shader on water material
@@ -244,7 +245,7 @@ export function createDomain1() {
 
     // Export Moon and RimMesh to control fresnel + intensity via main.js lil-gui
     // group.userData = { id: 'domain1', name: 'Malevolent Shrine', helper1: helper1, helper2: helper2 };
-    group.userData = { id: 'domain1', name: 'Malevolent Shrine' };
+    group.userData = { id: 'domain1', name: 'Malevolent Shrine', creator: 'Thai' };
     return group;
 }
 
@@ -299,7 +300,7 @@ export function createDomain2() {
     spawnSwords(group, ground, crossGroup, perf.swords);
 
     // group.userData = { id: 'domain2', name: 'Mutual Authentic Love', helper: helper };
-    group.userData = { id: 'domain2', name: 'Mutual Authentic Love' };
+    group.userData = { id: 'domain2', name: 'Mutual Authentic Love', creator: 'Thai'};
     return group;
 }
 
@@ -308,24 +309,6 @@ export function createDomain2() {
 // DOMAIN 3: HURTBREAK WONDERLAND
 // ==========================================
 export function createDomain3() {
-
-    const texLoader = new THREE.TextureLoader();
-    const domainTex = texLoader.load('assets/road-texture.png');
-
-    domainTex.wrapS = THREE.RepeatWrapping;
-    domainTex.wrapT = THREE.RepeatWrapping;
-
-    domainTex.repeat.set(20, 20);
-
-    const material = new THREE.MeshStandardMaterial({
-        //color: 0x828282, // beige
-        side: THREE.BackSide,
-        transparent: true,
-        opacity: 1.0,
-        depthWrite: false,
-        map: domainTex,
-    });
-
     // material.onBeforeCompile = (shader) => {
     //     shader.uniforms.uFogColor = { value: new THREE.Color(0xffdd88) };
     //     shader.uniforms.uFogNear = { value: 0.2 };
@@ -347,7 +330,7 @@ export function createDomain3() {
     // };
 
     const group = new THREE.Group();
-    const mesh = new THREE.Mesh(baseGeometry, material);
+    const mesh = new THREE.Mesh(baseGeometry, roadShellMaterial);
     group.add(mesh);
 
     // const fogGeo2 = new THREE.SphereGeometry(1, 48, 48);
@@ -388,98 +371,98 @@ export function createDomain3() {
     group.add(backLight);
     backLight.position.set(0.0, -0.2, 0.8);
 
-    const fogGeo = new THREE.SphereGeometry(0.75, 64, 64); // smaller than sky
-    // const fogMat = new THREE.MeshStandardMaterial({
+    // const fogGeo = new THREE.SphereGeometry(0.75, 64, 64); // smaller than sky
+    // // const fogMat = new THREE.MeshStandardMaterial({
+    // //     side: THREE.BackSide,
+    // //     transparent: true,
+    // //     opacity: 0.3,
+    // //     softnoise: true,
+    // // });
+
+    // const fogMat = new THREE.ShaderMaterial({
+    //     uniforms: {
+    //         u_time: globalUniforms.u_time,
+    //         u_local_opacity: { value: 1.0 }
+    //     },
     //     side: THREE.BackSide,
     //     transparent: true,
-    //     opacity: 0.3,
-    //     softnoise: true,
-    // });
-
-    const fogMat = new THREE.ShaderMaterial({
-        uniforms: {
-            u_time: globalUniforms.u_time,
-            u_local_opacity: { value: 1.0 }
-        },
-        side: THREE.BackSide,
-        transparent: true,
-        depthWrite: false,
-        depthTest: true,
-        //opacity: 0.7,
-        vertexShader: `
-            varying vec3 vPos;
-            void main() {
-                vPos = position;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-        `,
-        fragmentShader: `
-            uniform float u_time;
-            varying vec3 vPos;
+    //     depthWrite: false,
+    //     depthTest: true,
+    //     //opacity: 0.7,
+    //     vertexShader: `
+    //         varying vec3 vPos;
+    //         void main() {
+    //             vPos = position;
+    //             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    //         }
+    //     `,
+    //     fragmentShader: `
+    //         uniform float u_time;
+    //         varying vec3 vPos;
             
-            float noise3D(vec3 p);
+    //         float noise3D(vec3 p);
             
-            vec3 random3(vec3 p) {
-                p = vec3(dot(p, vec3(127.1, 311.7, 74.4)),
-                         dot(p, vec3(269.5, 183.3, 246.1)),
-                         dot(p, vec3(113.5, 271.9, 124.6)));
-                // Return a random vec on sphere or just a random normalized vector
-                return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-            }
-            float noise3D(vec3 p) {
-                vec3 i = floor(p);
-                vec3 f = fract(p);
+    //         vec3 random3(vec3 p) {
+    //             p = vec3(dot(p, vec3(127.1, 311.7, 74.4)),
+    //                      dot(p, vec3(269.5, 183.3, 246.1)),
+    //                      dot(p, vec3(113.5, 271.9, 124.6)));
+    //             // Return a random vec on sphere or just a random normalized vector
+    //             return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+    //         }
+    //         float noise3D(vec3 p) {
+    //             vec3 i = floor(p);
+    //             vec3 f = fract(p);
                 
-                // Smoothstep interpolation (quintic: 6t^5 - 15t^4 + 10t^3) 
-                vec3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+    //             // Smoothstep interpolation (quintic: 6t^5 - 15t^4 + 10t^3) 
+    //             vec3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
             
-                // Calc dot products for the 8 corners of the cube
-                float n000 = dot(random3(i + vec3(0,0,0)), f - vec3(0,0,0));
-                float n100 = dot(random3(i + vec3(1,0,0)), f - vec3(1,0,0));
-                float n010 = dot(random3(i + vec3(0,1,0)), f - vec3(0,1,0));
-                float n110 = dot(random3(i + vec3(1,1,0)), f - vec3(1,1,0));
-                float n001 = dot(random3(i + vec3(0,0,1)), f - vec3(0,0,1));
-                float n101 = dot(random3(i + vec3(1,0,1)), f - vec3(1,0,1));
-                float n011 = dot(random3(i + vec3(0,1,1)), f - vec3(0,1,1));
-                float n111 = dot(random3(i + vec3(1,1,1)), f - vec3(1,1,1));
+    //             // Calc dot products for the 8 corners of the cube
+    //             float n000 = dot(random3(i + vec3(0,0,0)), f - vec3(0,0,0));
+    //             float n100 = dot(random3(i + vec3(1,0,0)), f - vec3(1,0,0));
+    //             float n010 = dot(random3(i + vec3(0,1,0)), f - vec3(0,1,0));
+    //             float n110 = dot(random3(i + vec3(1,1,0)), f - vec3(1,1,0));
+    //             float n001 = dot(random3(i + vec3(0,0,1)), f - vec3(0,0,1));
+    //             float n101 = dot(random3(i + vec3(1,0,1)), f - vec3(1,0,1));
+    //             float n011 = dot(random3(i + vec3(0,1,1)), f - vec3(0,1,1));
+    //             float n111 = dot(random3(i + vec3(1,1,1)), f - vec3(1,1,1));
             
-                // Trilinear interpolation using the smooth weights (u)
-                return mix(
-                    mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
-                    mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y),
-                    u.z
-                );
-            }
+    //             // Trilinear interpolation using the smooth weights (u)
+    //             return mix(
+    //                 mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
+    //                 mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y),
+    //                 u.z
+    //             );
+    //         }
             
-            void main() {
-                vec3 p = vPos * 2.0;
+    //         void main() {
+    //             vec3 p = vPos * 2.0;
             
-                float time = u_time * 0.2;
+    //             float time = u_time * 0.2;
             
-                // slow drifting
-                p.y -= time;
+    //             // slow drifting
+    //             p.y -= time;
             
-                float n = noise3D(p);
-                n += 0.5 * noise3D(p * 2.0);
-                n /= 1.5;
+    //             float n = noise3D(p);
+    //             n += 0.5 * noise3D(p * 2.0);
+    //             n /= 1.5;
             
-                // normalize
-                n = n * 0.5 + 0.5;
+    //             // normalize
+    //             n = n * 0.5 + 0.5;
             
-                // soften it heavily
-                float fog = smoothstep(0.4, 0.7, n);
+    //             // soften it heavily
+    //             float fog = smoothstep(0.4, 0.7, n);
             
-                // fade top/bottom so it "hovers"
-                float heightMask = smoothstep(-0.2, 0.3, vPos.y);
+    //             // fade top/bottom so it "hovers"
+    //             float heightMask = smoothstep(-0.2, 0.3, vPos.y);
             
-                float alpha = fog * heightMask * 0.7;
+    //             float alpha = fog * heightMask * 0.7;
             
-                vec3 color = vec3(0.4, 0.4, 0.5);
+    //             vec3 color = vec3(0.4, 0.4, 0.5);
             
-                gl_FragColor = vec4(color, alpha);
-            }
-        `
-    });
+    //             gl_FragColor = vec4(color, alpha);
+    //         }
+    //     `
+    // });
 
     // const fog1 = new THREE.Mesh(fogGeo, fogMat);
     // fog1.position.set(0.0, -0.2, 0.0);
@@ -535,28 +518,28 @@ export function createDomain3() {
     //group.add(building);
 
 
-    group.userData = { id: 'domain3', name: 'Hurtbreak Wonderland' };
+    group.userData = { id: 'domain3', name: 'Hurtbreak Wonderland', creator: 'Sidhant' };
     return group;
 }
 
-function createRoofForBuildingTest(width, height, texLoader) {
-    const roofMats = [
-        new THREE.MeshStandardMaterial({ map: texLoader.load('assets/roof-texture.png') }),
-        new THREE.MeshStandardMaterial({ map: texLoader.load('assets/building-no-window-texture.png') }),
-        new THREE.MeshStandardMaterial({ map: texLoader.load('assets/building-no-window-texture.png') }),
-    ];
-    const roofHeight = width / 2;
-    const geo2 = new THREE.CylinderGeometry( roofHeight, roofHeight, width, 3 );
-    const roof = new THREE.Mesh( geo2, roofMats );
-    roof.rotation.x = -Math.PI / 2;
+// function createRoofForBuildingTest(width, height, texLoader) {
+//     const roofMats = [
+//         new THREE.MeshStandardMaterial({ map: texLoader.load('assets/roof-texture.png') }),
+//         new THREE.MeshStandardMaterial({ map: texLoader.load('assets/building-no-window-texture.png') }),
+//         new THREE.MeshStandardMaterial({ map: texLoader.load('assets/building-no-window-texture.png') }),
+//     ];
+//     const roofHeight = width / 2;
+//     const geo2 = new THREE.CylinderGeometry( roofHeight, roofHeight, width, 3 );
+//     const roof = new THREE.Mesh( geo2, roofMats );
+//     roof.rotation.x = -Math.PI / 2;
 
-    const random = Math.random();
-    if (random < 0.5) roof.rotation.y = Math.PI / 2;
+//     const random = Math.random();
+//     if (random < 0.5) roof.rotation.y = Math.PI / 2;
 
-    roof.position.y = height + (roofHeight / 2);
+//     roof.position.y = height + (roofHeight / 2);
 
-    return roof;
-}
+//     return roof;
+// }
 
 // TODO: Sidhant
 // ==========================================
@@ -607,7 +590,7 @@ export function createDomain4() {
     // group.add(circle)
 
 
-    group.userData = { id: 'domain4', name: 'Domain 4' };
+    group.userData = { id: 'domain4', name: '\"Hell\"', creator: 'Sidhant' };
     return group;
 }
 

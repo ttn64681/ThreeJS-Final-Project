@@ -1,6 +1,10 @@
 body {
-    margin: 0; overflow: hidden; background-color: #050505;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none;
+    margin: 0; overflow: hidden; background-color: #050505; color: #f5e2e2;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; -webkit-user-select: none; user-select: none; 
+}
+
+.lil-gui { 
+	--width: 300px;
 }
 
 #gui-container {
@@ -14,7 +18,7 @@ body {
 #ui-layer {
     position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
     display: flex; gap: 12px; z-index: 10;
-    background: rgba(15, 15, 15, 0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    background: rgba(15, 15, 15, 0.6); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); 
     padding: 12px 24px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
@@ -35,8 +39,13 @@ button:hover { color: white; background: rgba(255, 255, 255, 0.1); }
 }
 .active-btn:hover {
     transform: scale(1.05);
+
+}
+
+.active-btn:active {
+    transform: scale(0.97);
 }
 
 footer {
-    text-align:center; padding:16px; margin-top:24px; font-size:0.8rem; color:#999; border-top:1px solid #e5e7eb;
+    text-align: center; padding:16px; margin-top:24px; font-size:0.8rem; color:#999; border-top:1px solid #e5e7eb;
 }
