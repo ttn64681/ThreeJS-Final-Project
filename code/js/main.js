@@ -27,6 +27,7 @@ let state = {
     direction: 1,
     speed: 0.05,
     zoomProgress: 0.0,
+    domainCurrentName: 'Malevolent Shrine - Thai',
     domainOrderStr: 'D1 > D2 > D3 > D4',
     progressController: null,
     baseScaleFactor: 18,
@@ -37,7 +38,9 @@ let state = {
     // showLightHelpers: false,
 };
 function refreshDomainOrderStr() {
+    let currentDomain = domains[1];
     state.domainOrderStr = domains.map(d => d.userData.id).join(' > ');
+    state.domainCurrentName = currentDomain.userData.name + ' - ' + currentDomain.userData.creator;
 }
 
 // Intro Music State
@@ -197,7 +200,7 @@ function createObjects() {
 function setupGUI() {
     // Attach GUI to HTML gui-container
     const guiContainer = document.getElementById('gui-container');
-    gui = new GUI({ container: guiContainer, title: 'Engine Settings' });
+    gui = new GUI({ container: guiContainer, title: 'Engine Settings', closeFolders: true });
 
     // Animation Controls
     const engineFolder = gui.addFolder('Animation Engine');
@@ -211,6 +214,7 @@ function setupGUI() {
             u.searchParams.set('perf', v);           // set ?perf=v (v == 'high', 'medium', 'low')
             window.location.href = u.toString();     // reload page w/ new perf setting
         });
+    engineFolder.add(state, 'domainCurrentName').name('Current Domain').listen().disable();
     engineFolder.add(state, 'domainOrderStr').name('Current Order').listen().disable();
     state.progressDisplay = engineFolder.add(state, 'zoomProgress').name('Zoom Progress: ').decimals(4).disable();
     engineFolder.add(state, 'speed', 0.01, 1.5).name('Zoom Speed');
@@ -236,7 +240,7 @@ function setupGUI() {
     // devFolder.add(state, 'showLightHelpers').name('Show light helpers');
 
     // Domain 1: Moon Controls
-    const moonFolder = gui.addFolder('Domain 1:Moon');
+    const moonFolder = devFolder.addFolder('Domain 1:Moon');
     moonFolder; // hidden until dev mode activates Domain 1
     const colorProxy = { rimColor: globalUniforms.u_color.value.getHex() };
     moonFolder.addColor(colorProxy, 'rimColor').name('Rim Color').onChange(v => {
@@ -275,6 +279,11 @@ function setupGUI() {
         }
     };
     engineFolder.add(introControls, 'resetIntro').name('Replay Intro');
+
+    gui.engineFolder = engineFolder;
+    devFolder.moonFolder = moonFolder;
+    gui.devFolder = devFolder;
+    gui.musicFolder = musicFolder;
 }
 
 function stopIntroMusic() {
@@ -300,7 +309,7 @@ function setupButtons() {
     document.getElementById('btn-dev').addEventListener('click', (e) => setMode('dev', 0, e.target));
 }
 
-function setMode(mode, dir, btnElement) {
+function setMode(mode, dir, btnElement) { // button handler
     const prevMode = state.mode;
     state.mode = mode;
     if (dir !== 0) state.direction = dir;
@@ -336,6 +345,9 @@ function setMode(mode, dir, btnElement) {
             controls.update();
             controls.enableDamping = true;
         }
+        gui.devFolder.close();
+        gui.engineFolder.open();
+        gui.musicFolder.open();
         applyDomainScales();
     }
 }
@@ -361,6 +373,11 @@ function forEachMaterial(mesh, fn) {
 // ===================== Math Logic =====================
 
 function applyDevMode() { // one domain visible; lights ~ 5 * scale^2
+    // Close all folders, open only dev folder
+    gui.engineFolder.close();
+    gui.musicFolder.close();
+    gui.devFolder.open();
+
     domains.forEach(group => {
         if (group.userData.id === state.activeDevDomain) {
             group.visible = true;
