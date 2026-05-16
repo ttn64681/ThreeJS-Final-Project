@@ -12,6 +12,11 @@ fs.rmSync(dest, { recursive: true, force: true });
 const skipReadme = path.join(src, 'README.txt');
 fs.cpSync(src, dest, {
     recursive: true,
-    // Exclude only code/README.txt (not other README.txt under subfolders)
-    filter: (srcPath) => path.normalize(srcPath) !== path.normalize(skipReadme),
+    // Exclude code/README.txt and .DS_Store
+    filter: (srcPath) => {
+        const normalized = path.normalize(srcPath);
+        if (normalized === path.normalize(skipReadme)) return false;
+        if (path.basename(normalized) === '.DS_Store') return false;
+        return true;
+    },
 });
